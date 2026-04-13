@@ -1,9 +1,10 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash, send_file, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_file
 import pymysql
 from datetime import datetime
+import json
 import pandas as pd
 import io
-import os
+import base64
 
 app = Flask(__name__)
 app.secret_key = "stok_takip_gizli_anahtar"
@@ -26,13 +27,12 @@ def get_db_connection():
         print(f"BAĞLANTI HATASI: {e}")
         return None
 
-# --- VERİTABANI BAŞLATMA (TABLOLARI OLUŞTURUR) ---
+# --- TABLO OLUŞTURMA (Açılışta eksikleri tamamlar) ---
 def init_db():
-    conn = get_db_connection()
-    if conn:
+    db = get_db_connection()
+    if db:
         try:
-            with conn.cursor() as cursor:
-                # Kullanıcılar
+            with db.cursor() as cursor:
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS kullanicilar (
                         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -41,8 +41,6 @@ def init_db():
                     )
                 """)
                 cursor.execute("INSERT IGNORE INTO kullanicilar (kullanici_adi, sifre) VALUES ('admin', '123456')")
-                
-                # Stoklar
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS stoklar (
                         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -55,8 +53,6 @@ def init_db():
                         guncelleme_tarihi TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
                     )
                 """)
-
-                # Siparişler
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS siparisler (
                         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -67,29 +63,30 @@ def init_db():
                         tarih TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 """)
-            print("Tablolar başarıyla kontrol edildi/oluşturuldu.")
-        except Exception as e:
-            print(f"Tablo oluşturma hatası: {e}")
         finally:
-            conn.close()
+            db.close()
 
 init_db()
 
-# --- SAYFALAR (ROUTES) ---
+# --- ROTALAR (SAYFALAR) ---
 
+# HATA ÇÖZÜMÜ: Hem 'index' hem 'dashboard' isimlerini tanımlıyoruz
 @app.route('/')
-@app.route('/dashboard') # Hata veren kısım burasıydı, her ikisini de dashboard'a bağladık
+@app.route('/dashboard')
 def dashboard():
     if 'user' in session:
         return render_template('index.html')
     return redirect(url_for('login'))
+
+@app.route('/index')
+def index_redirect():
+    return redirect(url_for('dashboard'))
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
-        
         db = get_db_connection()
         if db:
             try:
@@ -123,17 +120,16 @@ def stok_listesi():
 def stok_ekle():
     if 'user' not in session: return redirect(url_for('login'))
     urun_adi = request.form.get('urun_adi')
-    miktar = request.form.get('miktar')
+    miktar = request.form.get('miktar', 0)
     birim = request.form.get('birim')
     barkod = request.form.get('barkod')
-    
     db = get_db_connection()
     if db:
         try:
             with db.cursor() as cursor:
                 cursor.execute("INSERT INTO stoklar (urun_adi, miktar, birim, barkod) VALUES (%s, %s, %s, %s)", 
                                (urun_adi, miktar, birim, barkod))
-            flash("Ürün eklendi!", "success")
+            flash("Ürün başarıyla eklendi.", "success")
         finally:
             db.close()
     return redirect(url_for('stok_listesi'))
@@ -142,15 +138,15 @@ def stok_ekle():
 def siparisler():
     if 'user' not in session: return redirect(url_for('login'))
     db = get_db_connection()
-    siparisler = []
+    siparis_listesi = []
     if db:
         try:
             with db.cursor() as cursor:
                 cursor.execute("SELECT * FROM siparisler ORDER BY tarih DESC")
-                siparisler = cursor.fetchall()
+                siparis_listesi = cursor.fetchall()
         finally:
             db.close()
-    return render_template('siparisler.html', siparisler=siparisler)
+    return render_template('siparisler.html', siparisler=siparis_listesi)
 
 @app.route('/export_excel')
 def export_excel():
@@ -160,18 +156,18 @@ def export_excel():
         with db.cursor() as cursor:
             cursor.execute("SELECT * FROM siparisler")
             veriler = cursor.fetchall()
-        
-        if veriler:
-            df = pd.DataFrame(veriler)
-            output = io.BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                df.to_excel(writer, index=False)
-            output.seek(0)
-            return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                             as_attachment=True, download_name="siparisler.xlsx")
+        if not veriler:
+            flash("Dışa aktarılacak veri yok.", "warning")
+            return redirect(url_for('siparisler'))
+        df = pd.DataFrame(veriler)
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False)
+        output.seek(0)
+        return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                         as_attachment=True, download_name="siparisler.xlsx")
     finally:
         db.close()
-    return redirect(url_for('siparisler'))
 
 @app.route('/logout')
 def logout():
