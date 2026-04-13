@@ -1,8 +1,6 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash, send_file
+from flask import Flask, render_template, request, redirect, url_for, session, flash
 import pymysql
-from datetime import datetime
-import io
-import pandas as pd
+import os
 
 app = Flask(__name__)
 app.secret_key = "stok_takip_gizli_anahtar"
@@ -20,12 +18,12 @@ def get_db_connection():
         ssl={'ssl': {}} 
     )
 
-# --- TABLO OLUŞTURMA FONKSİYONU ---
-def setup_db():
-    db = get_db_connection()
+# --- OTOMATİK TABLO KURULUMU ---
+def init_db():
     try:
+        db = get_db_connection()
         with db.cursor() as cursor:
-            # Kullanıcılar
+            # Kullanıcılar tablosu
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS kullanicilar (
                     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -33,39 +31,26 @@ def setup_db():
                     sifre VARCHAR(255) NOT NULL
                 )
             """)
-            # Stoklar
+            # Admin kullanıcısı (admin / 123456)
+            cursor.execute("INSERT IGNORE INTO kullanicilar (kullanici_adi, sifre) VALUES ('admin', '123456')")
+            
+            # Stoklar tablosu
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS stoklar (
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     urun_adi VARCHAR(100) NOT NULL,
                     miktar INT DEFAULT 0,
                     birim VARCHAR(20),
-                    barkod VARCHAR(50) UNIQUE,
-                    kritik_seviye INT DEFAULT 5
+                    barkod VARCHAR(50) UNIQUE
                 )
             """)
-            # Siparişler
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS siparisler (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    urun_adi VARCHAR(100),
-                    adet INT,
-                    musteri_adi VARCHAR(100),
-                    durum VARCHAR(50) DEFAULT 'Beklemede',
-                    tarih TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-            # Admin kullanıcısı ekle
-            cursor.execute("INSERT IGNORE INTO kullanicilar (kullanici_adi, sifre) VALUES ('admin', '123456')")
-    finally:
         db.close()
+        print("Veritabanı başarıyla hazırlandı.")
+    except Exception as e:
+        print(f"Veritabanı kurulum hatası: {e}")
 
-# Uygulama her başladığında tabloları kontrol et
-try:
-    setup_db()
-    print("Veritabanı kurulumu tamamlandı.")
-except Exception as e:
-    print(f"Kurulum hatası: {e}")
+# İlk çalıştırmada tabloları kur
+init_db()
 
 @app.route('/')
 def index():
@@ -79,18 +64,21 @@ def login():
         username = request.form.get('username')
         password = request.form.get('password')
         
-        db = get_db_connection()
         try:
+            db = get_db_connection()
             with db.cursor() as cursor:
                 cursor.execute("SELECT * FROM kullanicilar WHERE kullanici_adi = %s", (username,))
                 user = cursor.fetchone()
+                
                 if user and user['sifre'] == password:
                     session['user'] = username
                     return redirect(url_for('index'))
                 else:
                     flash("Hatalı kullanıcı adı veya şifre!")
-        finally:
             db.close()
+        except Exception as e:
+            return f"Veritabanı hatası: {str(e)}"
+            
     return render_template('login.html')
 
 @app.route('/logout')
