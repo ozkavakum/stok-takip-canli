@@ -1,0 +1,355 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="container-fluid py-4">
+    {# YETKİ DEĞİŞKENLERİ #}
+    {% set s_yetki = session.get('user_permissions', {}).get('siparis', 0)|int %}
+    {% set role = session.get('user_role', '') %}
+    {% set bugun = now_date if now_date else "" %}
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="fw-bold"><i class="fas fa-shopping-cart me-2"></i>Sipariş Yönetimi</h4>
+        
+        <div>
+            {# EXCEL AKTAR BUTONU #}
+            <a href="{{ url_for('siparis_excel_aktar') }}" class="btn btn-success shadow-sm me-2">
+                <i class="fas fa-file-excel"></i> Excel'e Aktar
+            </a>
+
+            {# YENİ SİPARİŞ BUTONU #}
+            {% if role == 'Admin' or s_yetki >= 2 %}
+            <button class="btn btn-primary shadow-sm" onclick="yeniSiparisModaliAc()">
+                <i class="fas fa-plus"></i> Yeni Sipariş Oluştur
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category if category != 'message' else 'info' }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div class="accordion shadow-sm" id="siparisAccordion">
+        {% for s in siparisler %}
+        <div class="accordion-item mb-3 border-0 shadow-sm" style="border-radius: 10px; overflow: hidden; border-left: 5px solid {% if s.durum == 'Bekliyor' %}#ffc107{% elif s.durum == 'Üretimde' %}#0dcaf0{% elif s.durum == 'Tamamlandı' %}#198754{% else %}#6c757d{% endif %} !important;">
+            <h2 class="accordion-header" id="heading{{ s.id }}">
+                <button class="accordion-button collapsed bg-white text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ s.id }}">
+                    <div class="row w-100 align-items-center">
+                        <div class="col-md-2"><strong>#{% if s.siparis_no %}{{ s.siparis_no }}{% else %}{{ s.id }}{% endif %}</strong></div>
+                        <div class="col-md-3"><strong>{{ s.musteri_adi }}</strong></div>
+                        <div class="col-md-2 text-muted small"><i class="far fa-calendar-alt me-1"></i>{{ s.siparis_tarihi }}</div>
+                        
+                        <div class="col-md-3 small">
+                            <span class="{% if s.durum != 'Tamamlandı' and s.teslim_tarihi < bugun %}text-danger fw-bold{% else %}text-primary{% endif %}">
+                                <i class="fas fa-truck me-1"></i>Teslim: {{ s.teslim_tarihi }}
+                                {% if s.durum != 'Tamamlandı' and s.teslim_tarihi < bugun %}
+                                <span class="badge bg-danger ms-1 animate__animated animate__flash animate__infinite">GECİKTİ</span>
+                                {% endif %}
+                            </span>
+                        </div>
+
+                        <div class="col-md-2 d-flex align-items-center justify-content-between">
+                            <span class="badge {% if s.durum == 'Bekliyor' %}bg-warning text-dark{% elif s.durum == 'Üretimde' %}bg-info{% elif s.durum == 'Tamamlandı' %}bg-success{% else %}bg-secondary{% endif %}">
+                                {{ s.durum }}
+                            </span>
+                            {% if s.siparis_uretim_durumu %}
+                            <span class="badge bg-{{ s.siparis_uretim_renk }} text-white">
+                                {{ s.siparis_uretim_durumu }}
+                            </span>
+                            {% endif %}
+                            <span class="badge rounded-pill bg-light text-dark border small" title="Ürün Çeşidi">
+                                {{ s.detaylar|length }} Kalem
+                            </span>
+                        </div>
+                    </div>
+                </button>
+            </h2>
+            <div id="collapse{{ s.id }}" class="accordion-collapse collapse" data-bs-parent="#siparisAccordion">
+                <div class="accordion-body bg-light">
+                    <div class="table-responsive bg-white rounded shadow-sm p-3">
+                        <table class="table table-sm table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Ürün Adı</th>
+                                    <th>Paket</th>
+                                    <th>P.İçi</th>
+                                    <th class="text-center">Sipariş Adet</th>
+                                    <th class="text-center">Gönderilen</th>
+                                    <th class="text-center">Kalan</th>
+                                    <th>Birim Fiyat</th>
+                                    <th class="text-end">Toplam</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for d in s.detaylar %}
+                                <tr class="{% if d.stok_renk == 'danger' %}table-danger{% elif d.stok_renk == 'warning' %}table-warning{% elif d.stok_renk == 'success' %}table-success{% endif %}">
+                                    <td>
+                                        {{ d.urun_adi }}
+                                        {% if d.durum_aciklama %}
+                                        <div class="mt-1"><span class="badge bg-{{ d.durum_renk }} small">{{ d.durum_aciklama }}</span></div>
+                                        {% else %}
+                                        <div class="mt-1"><span class="badge bg-{{ d.stok_renk }} small">{{ d.stok_uyari }}</span></div>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ d.paket_sayisi }} Pkt</td>
+                                    <td>{{ d.paket_ici_adet }}</td>
+                                    <td class="text-center"><strong>{{ d.siparis_miktari }}</strong></td>
+                                    <td class="text-center">
+                                        <span class="badge {% if d.gonderilen_miktari == d.siparis_miktari %}bg-success{% elif d.gonderilen_miktari > 0 %}bg-warning{% else %}bg-danger{% endif %}">
+                                            {{ d.gonderilen_miktari }}
+                                        </span>
+                                    </td>
+                                    <td class="text-center">
+                                        {% if d.kalan_miktari > 0 %}
+                                        <span class="badge bg-warning text-dark">{{ d.kalan_miktari }}</span>
+                                        {% else %}
+                                        <span class="badge bg-success">Tamamlandı</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ d.birim_fiyat | format_tl }} TL</td>
+                                    <td class="text-end">{{ (d.siparis_miktari * d.birim_fiyat) | round(2) | format_tl }} TL</td>
+                                </tr>
+                        {% endfor %}
+                    </tbody>
+                        </table>
+                        <div class="p-3 bg-white rounded-bottom border-top d-flex justify-content-end align-items-center">
+                            <h6 class="mb-0">Sipariş Toplamı: <strong>{{ s.siparis_toplami | format_tl }} TL</strong></h6>
+                        </div>
+                        {% if role == 'Admin' or s_yetki >= 2 %}
+                        <form action="/siparis_durum_guncelle/{{ s.id }}" method="POST" class="d-inline-block me-2">
+                            <select name="durum" class="form-select form-select-sm d-inline-block w-auto" onchange="this.form.submit()">
+                                <option value="Bekliyor" {% if s.durum == 'Bekliyor' %}selected{% endif %}>Bekliyor</option>
+                                <option value="Üretimde" {% if s.durum == 'Üretimde' %}selected{% endif %}>Üretimde</option>
+                                <option value="Tamamlandı" {% if s.durum == 'Tamamlandı' %}selected{% endif %}>Tamamlandı</option>
+                            </select>
+                        </form>
+                        {% endif %}
+                        
+                        {% if role == 'Admin' or s_yetki >= 3 %}
+                        <button class="btn btn-sm btn-outline-primary" onclick='siparisDuzenle({{ s|tojson|safe }})'>
+                            <i class="fas fa-edit"></i> Düzenle
+                        </button>
+                        {% endif %}
+                        
+                        {% if role == 'Admin' or s_yetki == 4 %}
+                        <a href="/siparis_sil/{{ s.id }}" class="btn btn-sm btn-outline-danger" onclick="return confirm('Siparişi silmek istediğinize emin misiniz?')">
+                            <i class="fas fa-trash"></i> Sil
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+{# MODAL KISMI #}
+<div class="modal fade" id="siparisModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <form id="siparisForm" class="modal-content border-0 shadow" action="/siparis_ekle" method="POST">
+            <input type="hidden" name="siparis_id" id="edit_siparis_id">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="modalTitle">Yeni Sipariş Kaydı</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold">MÜŞTERİ</label>
+                        <select name="musteri_id" id="form_musteri_id" class="form-select" required>
+                            <option value="">Seçiniz...</option>
+                            {% for m in musteriler %}
+                            <option value="{{ m.id }}">{{ m.musteri_adi }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold">TESLİM TARİHİ</label>
+                        <input type="date" name="teslim_tarihi" id="form_teslim_tarihi" class="form-control" required>
+                    </div>
+                    <hr>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="mb-0 text-primary fw-bold">Ürün Bilgileri</h6>
+                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="yeniUrunSatiriEkle()">+ Ürün Ekle</button>
+                    </div>
+                    <div id="urun-satirlari"></div>
+                    <div class="col-12 mt-3">
+                        <label class="form-label small fw-bold">SİPARİŞ NOTU</label>
+                        <textarea name="notlar" id="form_notlar" class="form-control" rows="2"></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="submit" class="btn btn-primary w-100">Siparişi Kaydet</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+const urunListe = {{ urunler | tojson | safe }};
+const urunMap = {};
+urunListe.forEach(u => {
+    urunMap[u.id] = u;
+});
+
+function stokSorgula(selectElement) {
+    const urunId = selectElement.value;
+    const satir = selectElement.closest('.urun-item');
+    const badge = satir.querySelector('.stok-gosterge');
+    const stokYazi = satir.querySelector('.stok-adet');
+    const iciInput = satir.querySelector('.ici');
+
+    if (!urunId) {
+        badge.style.display = 'none';
+        return;
+    }
+
+    const paketIciFromList = urunMap[urunId] ? urunMap[urunId].paket_ici_adet : null;
+    const paketIci = paketIciFromList != null ? paketIciFromList : 1;
+    if (paketIciFromList != null) {
+        console.log("Paket İçi Adet (hareket):", paketIci);
+        iciInput.value = paketIci;
+        hesapla(iciInput);
+    }
+
+    fetch('/get_urun_stok/' + urunId)
+        .then(response => response.json())
+        .then(data => {
+            console.log("API Response:", data);
+            
+            if (data.error) {
+                console.error("Stok hatası:", data.error);
+                return;
+            }
+            
+            const stok = data.stok;
+            const paketIciApi = data.paket_ici_adet || paketIci;
+            
+            stokYazi.innerText = stok + " Pkt";
+            badge.style.display = 'inline-block';
+            
+            badge.className = 'badge stok-gosterge'; 
+            if (stok <= 0) {
+                badge.classList.add('bg-danger');
+            } else if (stok <= 50) {
+                badge.classList.add('bg-warning', 'text-dark');
+            } else {
+                badge.classList.add('bg-success');
+            }
+            
+            if (!iciInput.value || iciInput.value == '0') {
+                iciInput.value = paketIciApi;
+                console.log("P.İçi alanı API ile güncellendi:", iciInput.value);
+                hesapla(iciInput);
+            }
+        })
+        .catch(err => console.error("Fetch Hatası:", err));
+}
+
+function yeniUrunSatiriEkle(data = null) {
+    const container = document.getElementById('urun-satirlari');
+    const div = document.createElement('div');
+    div.className = 'urun-item border p-3 mb-2 bg-light rounded';
+    
+    let urunOptions = `<option value="">Ürün Seçiniz...</option>`;
+    urunListe.forEach(u => {
+        let selected = (data && data.urun_id == u.id) ? 'selected' : '';
+        urunOptions += `<option value="${u.id}" ${selected}>${u.urun_adi}</option>`;
+    });
+
+    div.innerHTML = `
+        <div class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label class="small text-muted fw-bold">Ürün</label>
+                <select name="urun_id[]" class="form-select form-select-sm urun-select" required onchange="stokSorgula(this)">
+                    ${urunOptions}
+                </select>
+                <div class="mt-1">
+                    <span class="badge stok-gosterge" style="display:none; font-size: 0.75rem;">
+                        Depo Stok: <span class="stok-adet">0</span>
+                    </span>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <label class="small text-muted">Pkt</label>
+                <input type="number" name="paket_sayisi[]" class="form-control form-control-sm pkt" value="${data ? data.paket_sayisi : 0}" oninput="hesapla(this)" min="0">
+            </div>
+            <div class="col-md-2">
+                <label class="small text-muted">P.İçi</label>
+                <input type="number" name="paket_ici_adet[]" class="form-control form-control-sm ici" value="${data ? data.paket_ici_adet : ''}" oninput="hesapla(this)" min="0">
+            </div>
+            <div class="col-md-2">
+                <label class="small text-muted">Toplam</label>
+                <input type="number" name="adet[]" class="form-control form-control-sm toplam-adet" value="${data ? data.miktar : 0}" readonly min="0">
+            </div>
+            <div class="col-md-2">
+                <label class="small text-muted">B.Fiyat</label>
+                <div class="input-group input-group-sm">
+                    <input type="number" step="0.01" name="birim_fiyat[]" class="form-control" value="${data ? data.birim_fiyat : 0}" min="0">
+                    <button type="button" class="btn btn-danger" onclick="this.closest('.urun-item').remove()">X</button>
+                </div>
+            </div>
+        </div>
+    `;
+    container.appendChild(div);
+    
+    // Ürün seçme elementini al
+    const selectElement = div.querySelector('.urun-select');
+    
+    // Eğer data var (düzenleme durumu), stokSorgula çağır
+    if(data && data.urun_id) {
+        setTimeout(() => stokSorgula(selectElement), 100);
+    }
+    
+    // Select'e direkt change event listener ekle (onchange'in yanında güvenlik amaçlı)
+    selectElement.addEventListener('change', function() {
+        console.log("Select change tetiklendi");
+        stokSorgula(this);
+    });
+}
+
+function hesapla(el) {
+    const parent = el.closest('.urun-item');
+    const pkt = parseFloat(parent.querySelector('.pkt').value) || 0;
+    const ici = parseFloat(parent.querySelector('.ici').value) || 0;
+    parent.querySelector('.toplam-adet').value = pkt * ici;
+}
+
+function yeniSiparisModaliAc() {
+    document.getElementById('siparisForm').action = "/siparis_ekle";
+    document.getElementById('modalTitle').innerText = "Yeni Sipariş Oluştur";
+    document.getElementById('edit_siparis_id').value = "";
+    document.getElementById('form_musteri_id').value = "";
+    document.getElementById('form_teslim_tarihi').value = "";
+    document.getElementById('urun-satirlari').innerHTML = "";
+    document.getElementById('form_notlar').value = "";
+    yeniUrunSatiriEkle();
+    new bootstrap.Modal(document.getElementById('siparisModal')).show();
+}
+
+function siparisDuzenle(siparis) {
+    document.getElementById('siparisForm').action = "/siparis_guncelle";
+    document.getElementById('modalTitle').innerText = "Siparişi Düzenle #" + (siparis.siparis_no || siparis.id);
+    document.getElementById('edit_siparis_id').value = siparis.id;
+    document.getElementById('form_musteri_id').value = siparis.musteri_id;
+    document.getElementById('form_teslim_tarihi').value = siparis.teslim_tarihi;
+    document.getElementById('form_notlar').value = siparis.siparis_notu;
+    const container = document.getElementById('urun-satirlari');
+    container.innerHTML = "";
+    if(siparis.detaylar && siparis.detaylar.length > 0) {
+        siparis.detaylar.forEach(detay => yeniUrunSatiriEkle(detay));
+    } else {
+        yeniUrunSatiriEkle();
+    }
+    new bootstrap.Modal(document.getElementById('siparisModal')).show();
+}
+</script>
+{% endblock %}

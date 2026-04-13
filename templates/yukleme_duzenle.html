@@ -1,0 +1,144 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-bold text-dark mb-0"><i class="fas fa-edit me-2 text-primary"></i>Yükleme Düzenle #{{ y.id }}</h2>
+        <a href="/yukleme" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left"></i> Geri Dön</a>
+    </div>
+
+    <form action="/yukleme_guncelle/{{ y.id }}" method="POST">
+
+        <div class="card shadow-sm border-0 mb-4" style="border-radius: 12px;">
+            <div class="card-body row g-3">
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">Yükleme Tarihi</label>
+                    <input type="date" name="tarih" class="form-control" value="{{ y.tarih }}" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold text-primary">Sipariş No</label>
+                    <input type="text" class="form-control bg-light" value="{{ y.siparis_no or 'Bağımsız' }}" readonly>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">Araç Plakası</label>
+                    <input type="text" name="plaka" class="form-control" value="{{ y.arac_plakasi or '' }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">Yükleme Durumu</label>
+                    <select name="durum" class="form-select">
+                        <option value="Hazırlanıyor" {% if y.durum == 'Hazırlanıyor' %}selected{% endif %}>Hazırlanıyor</option>
+                        <option value="Araca Yüklendi" {% if y.durum == 'Araca Yüklendi' %}selected{% endif %}>Araca Yüklendi</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm border-0" style="border-radius: 12px;">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold text-secondary">Yüklü Ürünler</h6>
+                <button type="button" class="btn btn-outline-primary btn-sm" onclick="yeniUrunSatiriEkle()">
+                    <i class="fas fa-plus"></i> Satır Ekle
+                </button>
+            </div>
+            <div class="card-body">
+                <div id="urun_listesi_alani">
+                    {% if detaylar %}
+                    {% for d in detaylar %}
+                    <div class="row g-2 urun-satir mb-2 align-items-end">
+                        <div class="col-md-3">
+                            <label class="small fw-bold">Müşteri</label>
+                            <select name="musteri_id[]" class="form-select form-select-sm" required>
+                                {% if d.musteri_id %}
+                                <option value="{{ d.musteri_id }}" selected>{{ d.musteri_adi }}</option>
+                                {% else %}
+                                <option value="">Seçiniz...</option>
+                                {% endif %}
+                                {% for m in musteriler %}<option value="{{ m.id }}">{{ m.musteri_adi }}</option>{% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="small fw-bold">Ürün</label>
+                            <select name="urun_id[]" class="form-select form-select-sm" required>
+                                {% if d.urun_id %}
+                                <option value="{{ d.urun_id }}" selected>{{ d.urun_adi }}</option>
+                                {% else %}
+                                <option value="">Seçiniz...</option>
+                                {% endif %}
+                                {% for u in urunler %}<option value="{{ u.id }}">{{ u.urun_adi }}</option>{% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="small fw-bold">Paket</label>
+                            <input type="number" name="paket[]" class="form-control form-control-sm p-count" oninput="hesapla(this)" value="{{ d.paket }}" required>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="small fw-bold">P. İçi</label>
+                            <input type="number" name="paket_ici[]" class="form-control form-control-sm p-inner" oninput="hesapla(this)" value="{{ d.paket_ici }}" required>
+                        </div>
+                        <div class="col-md-1">
+                            <label class="small fw-bold">Toplam</label>
+                            <input type="number" class="form-control form-control-sm bg-light p-total" readonly value="{{ d.toplam_adet }}">
+                        </div>
+                        <div class="col-md-1 text-end">
+                            <button type="button" class="btn btn-link text-danger p-0" onclick="this.closest('.urun-satir').remove()">
+                                <i class="fas fa-times-circle fa-lg"></i>
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% else %}
+                    <div class="alert alert-info py-2">Yükleme detayı bulunmamaktadır. Satır eklemek için "Satır Ekle" butonunu kullanınız.</div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card-footer bg-light text-end py-3">
+                <button type="submit" class="btn btn-primary fw-bold px-5">DEĞİŞİKLİKLERİ KAYDET</button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+function hesapla(element) {
+    const satir = element.closest('.urun-satir');
+    const p = parseFloat(satir.querySelector('.p-count').value) || 0;
+    const pi = parseFloat(satir.querySelector('.p-inner').value) || 0;
+    satir.querySelector('.p-total').value = (p * pi);
+}
+
+function yeniUrunSatiriEkle() {
+    const alan = document.getElementById('urun_listesi_alani');
+    const uniqueId = Date.now();
+    let html = `
+    <div class="row g-2 urun-satir mb-2 align-items-end" id="satir_${uniqueId}">
+        <div class="col-md-3">
+            <select name="musteri_id[]" class="form-select form-select-sm" required>
+                <option value="">Müşteri Seç...</option>
+                {% for m in musteriler %}<option value="{{ m.id }}">{{ m.musteri_adi }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-3">
+            <select name="urun_id[]" class="form-select form-select-sm" required>
+                <option value="">Ürün Seç...</option>
+                {% for u in urunler %}<option value="{{ u.id }}">{{ u.urun_adi }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <input type="number" name="paket[]" class="form-control form-control-sm p-count" oninput="hesapla(this)" value="0" required>
+        </div>
+        <div class="col-md-2">
+            <input type="number" name="paket_ici[]" class="form-control form-control-sm p-inner" oninput="hesapla(this)" value="0" required>
+        </div>
+        <div class="col-md-1">
+            <input type="number" class="form-control form-control-sm bg-light p-total" readonly value="0">
+        </div>
+        <div class="col-md-1 text-end">
+            <button type="button" class="btn btn-link text-danger p-0" onclick="this.closest('.urun-satir').remove()">
+                <i class="fas fa-times-circle fa-lg"></i>
+            </button>
+        </div>
+    </div>`;
+    alan.insertAdjacentHTML('beforeend', html);
+}
+</script>
+{% endblock %}

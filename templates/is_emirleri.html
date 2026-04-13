@@ -1,0 +1,362 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="container-fluid py-4">
+    {% set yetki = session.get('user_permissions', {}).get('isemri', 0)|int %}
+    {% set role = session.get('user_role', '') %}
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="fw-bold text-dark"><i class="fas fa-industry me-2 text-primary"></i>İş Emri Yönetimi</h4>
+        {% if role == 'Admin' or yetki >= 2 %}
+        <button class="btn btn-primary shadow" data-bs-toggle="modal" data-bs-target="#isEmriModal">
+            <i class="fas fa-plus-circle me-1"></i> Yeni İş Emri
+        </button>
+        {% endif %}
+    </div>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            <div class="alert alert-info alert-dismissible fade show border-0 shadow-sm" role="alert">
+                {{ messages|first }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endif %}
+    {% endwith %}
+
+{% for ie in emirler %}
+<div class="modal fade" id="editModal{{ ie.id }}" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <form class="modal-content shadow-lg border-0" action="/is_emri_guncelle" method="POST">
+            <input type="hidden" name="is_emri_id" value="{{ ie.id }}">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">İş Emrini Düzenle: {{ ie.is_emri_no }}</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Bağlı Sipariş</label>
+                        <select name="siparis_id" class="form-select" disabled>
+                            <option value="">--- Bağımsız Üretim ---</option>
+                            {% for s in siparisler %}
+                            <option value="{{ s.id }}" {% if s.id == ie.siparis_id %}selected{% endif %}>{{ s.siparis_no }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Üretilecek Ürün</label>
+                        <select name="urun_id" class="form-select edit-urun-select" required onchange="guncelleEditPaketIciAdet(this)">
+                            <option value="">Ürün Seçiniz...</option>
+                            {% for u in urunler %}
+                            <option value="{{ u.id }}" {% if u.id == ie.urun_id %}selected{% endif %}>{{ u.urun_adi }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="row bg-light p-3 rounded mb-3 border mx-1">
+                    <div class="col-md-4">
+                        <label class="small fw-bold">Paket Sayısı</label>
+                        <input type="number" name="paket_sayisi" class="form-control calc" value="{{ ie.paket_sayisi }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="small fw-bold">Paket İçi Adet</label>
+                        <input type="number" name="paket_ici_adet" class="form-control calc" value="{{ ie.paket_ici_adet }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="small fw-bold text-primary">Toplam Adet</label>
+                        <input type="number" name="miktar" class="form-control fw-bold border-primary bg-white" value="{{ ie.planlanan_miktar }}" required>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Makine / Hat</label>
+                        <select name="makine" class="form-select">
+                            <option value="Makine-01" {% if ie.makine_no == 'Makine-01' %}selected{% endif %}>Makine-01</option>
+                            <option value="Makine-02" {% if ie.makine_no == 'Makine-02' %}selected{% endif %}>Makine-02</option>
+                            <option value="Makine-03" {% if ie.makine_no == 'Makine-03' %}selected{% endif %}>Makine-03</option>
+                            <option value="Manuel Hat" {% if ie.makine_no == 'Manuel Hat' %}selected{% endif %}>Manuel Hat</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Planlanan Tarih</label>
+                        <input type="date" name="tarih" class="form-control" value="{{ (ie.baslangic_tarihi or now)|string|truncate(10, True, '') }}" required>
+                    </div>
+                </div>
+
+                <!-- ✅ DURUM ALANI - BURAYA EKLENDİ -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Durum</label>
+                    <select name="durum" class="form-select">
+                        <option value="Bekliyor"    {% if ie.durum == 'Bekliyor' %}selected{% endif %}>⏳ Bekliyor</option>
+                        <option value="Üretimde"   {% if ie.durum == 'Üretimde' %}selected{% endif %}>🔧 Üretimde</option>
+                        <option value="Tamamlandı" {% if ie.durum == 'Tamamlandı' %}selected{% endif %}>✅ Tamamlandı</option>
+                        <option value="İptal"      {% if ie.durum == 'İptal' %}selected{% endif %}>❌ İptal</option>
+                    </select>
+                </div>
+
+                <div class="mb-0">
+                    <label class="form-label fw-bold">İş Emri Notu</label>
+                    <textarea name="notlar" class="form-control" rows="2">{{ ie.notlar }}</textarea>
+                </div>
+            </div>
+            <div class="modal-footer bg-light border-0">
+                <button type="submit" class="btn btn-primary w-100 py-2 fw-bold">Güncelle</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endfor %}
+
+    <div class="card shadow-sm border-0" style="border-radius: 12px;">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="ps-4">No</th>
+                            <th>Sipariş</th>
+                            <th>Ürün</th>
+                            <th>Makine</th>
+                            <th>Planlanan</th>
+                            <th>İlerleme</th>
+                            <th>Durum</th>
+                            <th class="text-end pe-4">İşlem</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for ie in emirler %}
+                        <tr>
+                            <td class="ps-4"><strong>{{ ie.is_emri_no }}</strong></td>
+                            <td><span class="badge bg-secondary">{{ ie.siparis_no or 'Bağımsız' }}</span></td>
+                            <td>{{ ie.urun_adi }}</td>
+                            <td><span class="text-primary fw-bold">{{ ie.makine_no or '-' }}</span></td>
+                            <td>{{ ie.planlanan_miktar }}</td>
+                            <td style="width: 200px;">
+                                {% set yuzde = (ie.uretilen_miktar / ie.planlanan_miktar * 100)|round|int if ie.planlanan_miktar > 0 else 0 %}
+                                <div class="progress" style="height: 12px; border-radius: 6px;">
+                                    <div class="progress-bar {% if yuzde >= 100 %}bg-success{% elif yuzde > 0 %}bg-primary{% else %}bg-light{% endif %}" 
+                                         role="progressbar" style="width: {{ yuzde }}%">
+                                    </div>
+                                </div>
+                                <small class="text-muted">{{ ie.uretilen_miktar }} / {{ ie.planlanan_miktar }} Adet</small>
+                            </td>
+                            <td>
+                                <span class="badge {% if ie.durum == 'Bekliyor' %}bg-warning text-dark{% elif ie.durum == 'Üretimde' %}bg-info{% elif ie.durum == 'Tamamlandı' %}bg-success{% else %}bg-danger{% endif %}">
+                                    {{ ie.durum }}
+                                </span>
+                            </td>
+                            <td class="text-end pe-4">
+                                <div class="btn-group">
+                                    {% if role == 'Admin' or yetki >= 3 %}
+                                    <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editModal{{ ie.id }}">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    {% endif %}
+                                    {% if role == 'Admin' or yetki >= 4 %}
+                                    <a href="/is_emri_sil/{{ ie.id }}" class="btn btn-sm btn-outline-danger" onclick="return confirm('Emin misiniz?')">
+                                        <i class="fas fa-trash"></i>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td colspan="8" class="text-end small text-muted">
+                                <span>Ekleyen: <b>{{ ie.ekleyen_kullanici or '-' }}</b></span>
+                                {% if ie.guncelleyen_kullanici %} | <span>Güncelleyen: <b>{{ ie.guncelleyen_kullanici }}</b></span>{% endif %}
+                                {% if ie.silen_kullanici %} | <span>Silinme: <b>{{ ie.silen_kullanici }}</b></span>{% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- YENİ İŞ EMRİ MODALI -->
+<div class="modal fade" id="isEmriModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <form class="modal-content shadow-lg border-0" action="/is_emri_ekle" method="POST">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">Yeni İş Emri Oluştur</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Bağlı Sipariş</label>
+                        <select name="siparis_id" id="siparis_select" class="form-select">
+                            <option value="">--- Bağımsız Üretim ---</option>
+                            {% for s in siparisler %}
+                            <option value="{{ s.id }}">{{ s.siparis_no }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Üretilecek Ürün</label>
+                        <select name="urun_id" id="urun_select" class="form-select" required onchange="urunSecildiIsEmri()">
+                            <option value="">Ürün Seçiniz...</option>
+                            {% for u in urunler %}
+                            <option value="{{ u.id }}" class="all-products-option">{{ u.urun_adi }}</option>
+                            {% endfor %}
+                        </select>
+                        <div id="siparis_miktar_bilgi" class="small mt-1 fw-bold text-primary"></div>
+                    </div>
+                </div>
+
+                <div class="row bg-light p-3 rounded mb-3 border mx-1">
+                    <div class="col-md-4">
+                        <label class="small fw-bold">Paket Sayısı</label>
+                        <input type="number" name="paket_sayisi" id="ps" class="form-control calc" value="0">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="small fw-bold">Paket İçi Adet</label>
+                        <input type="number" name="paket_ici_adet" id="pia" class="form-control calc" value="0">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="small fw-bold text-primary">Toplam Adet</label>
+                        <input type="number" name="miktar" id="ta" class="form-control fw-bold border-primary bg-white" readonly required>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Makine / Hat</label>
+                        <select name="makine" class="form-select">
+                            <option value="Makine-01">Makine-01</option>
+                            <option value="Makine-02">Makine-02</option>
+                            <option value="Makine-03">Makine-03</option>
+                            <option value="Manuel Hat">Manuel Hat</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">Planlanan Tarih</label>
+                        <input type="date" name="tarih" class="form-control" value="{{ now }}" required>
+                    </div>
+                </div>
+                <div class="mb-0">
+                    <label class="form-label fw-bold">İş Emri Notu</label>
+                    <textarea name="notlar" class="form-control" rows="2" placeholder="Not ekleyin..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer bg-light border-0">
+                <button type="submit" class="btn btn-primary w-100 py-2 fw-bold">İş Emrini Kaydet ve Başlat</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+let seciliUrunlerData = [];
+const tumUrunlerHtml = document.getElementById('urun_select').innerHTML;
+
+document.getElementById('siparis_select').addEventListener('change', function() {
+    const siparisId = this.value;
+    const urunSelect = document.getElementById('urun_select');
+    const miktarBilgi = document.getElementById('siparis_miktar_bilgi');
+    
+    miktarBilgi.innerText = "";
+
+    if (siparisId === "") {
+        urunSelect.innerHTML = tumUrunlerHtml;
+        seciliUrunlerData = [];
+        return;
+    }
+
+    fetch(`/get_siparis_urunler/${siparisId}`)
+        .then(response => response.json())
+        .then(data => {
+            seciliUrunlerData = data; 
+            urunSelect.innerHTML = '<option value="">Siparişteki Ürünü Seçiniz...</option>';
+            
+            if(data.length === 0) {
+                urunSelect.innerHTML = '<option value="">Bu siparişte ürün bulunamadı!</option>';
+            } else {
+                data.forEach(u => {
+                    urunSelect.innerHTML += `<option value="${u.id}">${u.urun_adi}</option>`;
+                });
+            }
+        })
+        .catch(err => {
+            console.error("Hata:", err);
+            alert("Ürünler yüklenirken bir sorun oluştu.");
+        });
+});
+
+document.getElementById('urun_select').addEventListener('change', function() {
+    const urunId = this.value;
+    const miktarBilgi = document.getElementById('siparis_miktar_bilgi');
+    const psInput = document.getElementById('ps');
+    const piaInput = document.getElementById('pia');
+    if (urunId && seciliUrunlerData.length > 0) {
+        const urun = seciliUrunlerData.find(u => u.id == urunId);
+        if (urun) {
+            miktarBilgi.innerText = `📦 Siparişteki Toplam Adet: ${urun.siparis_adet} Adet`;
+            if (typeof urun.paket_sayisi !== 'undefined' && urun.paket_sayisi !== null) {
+                psInput.value = urun.paket_sayisi;
+                psInput.dispatchEvent(new Event('input'));
+            }
+            if (typeof urun.paket_ici_adet !== 'undefined' && urun.paket_ici_adet !== null) {
+                piaInput.value = urun.paket_ici_adet;
+                piaInput.dispatchEvent(new Event('input'));
+            }
+        }
+    } else {
+        miktarBilgi.innerText = "";
+        psInput.value = 0;
+        psInput.dispatchEvent(new Event('input'));
+    }
+    urunSecildiIsEmri();
+});
+
+function urunSecildiIsEmri() {
+    const urunId = document.getElementById('urun_select').value;
+    const piaInput = document.getElementById('pia');
+    
+    if (!urunId) return;
+    
+    fetch('/get_urun_stok/' + urunId)
+        .then(response => response.json())
+        .then(data => {
+            if (data.paket_ici_adet && (!piaInput.value || piaInput.value == '0')) {
+                piaInput.value = data.paket_ici_adet;
+                piaInput.dispatchEvent(new Event('input'));
+            }
+        });
+}
+
+document.querySelectorAll('.calc').forEach(input => {
+    input.addEventListener('input', () => {
+        const ps = parseFloat(document.getElementById('ps').value) || 0;
+        const pia = parseFloat(document.getElementById('pia').value) || 0;
+        document.getElementById('ta').value = Math.max(0, ps * pia);
+    });
+});
+
+// Edit modalında ürün seçilince paket içi adet otomatik gelsin
+function guncelleEditPaketIciAdet(selectElement) {
+    const urunId = selectElement.value;
+    const modal = selectElement.closest('.modal');
+    const piaInput = modal.querySelector('input[name="paket_ici_adet"]');
+    const psInput = modal.querySelector('input[name="paket_sayisi"]');
+    const taInput = modal.querySelector('input[name="miktar"]');
+    
+    if (!urunId) return;
+    
+    fetch('/get_urun_stok/' + urunId)
+        .then(response => response.json())
+        .then(data => {
+            if (data.paket_ici_adet) {
+                piaInput.value = data.paket_ici_adet;
+                // Toplam adet'i yeniden hesapla
+                const ps = parseFloat(psInput.value) || 0;
+                const pia = parseFloat(piaInput.value) || 0;
+                taInput.value = ps * pia;
+                piaInput.dispatchEvent(new Event('input'));
+            }
+        })
+        .catch(err => console.error("API Hatası:", err));
+}
+</script>
+{% endblock %}

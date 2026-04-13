@@ -1,0 +1,125 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4><i class="fas fa-address-book me-2"></i>Müşteri Yönetimi</h4>
+        {% set musteri_yetki = session['user_permissions']['musteri'] if session['user_permissions'] is defined and 'musteri' in session['user_permissions'] else 0 %}
+        {% set is_admin = session['user_role'] == 'Admin' %}
+        {% if musteri_yetki >= 2 or is_admin %}
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#ekleModal">+ Yeni Müşteri</button>
+        {% endif %}
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>ID</th>
+                            <th>Müşteri Adı</th>
+                            <th>İlgili Kişi</th>
+                            <th>Telefon</th>
+                            <th class="text-end">İşlemler</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for m in musteriler %}
+                        <tr>
+                            <td>{{ m.id }}</td>
+                            <td><strong>{{ m.musteri_adi }}</strong></td>
+                            <td>{{ m.ilgili_kisi }}</td>
+                            <td>{{ m.telefon }}</td>
+                            <td class="text-end">
+                                {% if musteri_yetki >= 3 or is_admin %}
+                                <button class="btn btn-sm btn-outline-warning me-1" 
+                                        onclick="duzenleModaliAc('{{ m.id }}', '{{ m.musteri_adi }}', '{{ m.ilgili_kisi }}', '{{ m.telefon }}')">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                {% endif %}
+                                {% if musteri_yetki >= 4 or is_admin %}
+                                <a href="/musteri_sil/{{ m.id }}" class="btn btn-sm btn-outline-danger" 
+                                   onclick="return confirm('Müşteriyi silmek istediğinize emin misiniz?')">
+                                    <i class="fas fa-trash"></i>
+                                </a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="ekleModal" tabindex="-1">
+    <div class="modal-dialog">
+        {% if musteri_yetki >= 2 or is_admin %}
+        <form class="modal-content" action="/musteri_ekle" method="POST">
+            <div class="modal-header bg-primary text-white"><h5>Yeni Müşteri Kaydı</h5></div>
+            <div class="modal-body">
+                <input type="text" name="ad" class="form-control mb-3" placeholder="Müşteri Adı" required>
+                <input type="text" name="ilgili" class="form-control mb-3" placeholder="İlgili Kişi">
+                <input type="text" name="tel" class="form-control mb-3" placeholder="Telefon">
+            </div>
+            <div class="modal-footer">
+                <button type="submit" class="btn btn-primary w-100">Kaydet</button>
+            </div>
+        </form>
+        {% else %}
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white"><h5>Yetki Yok</h5></div>
+            <div class="modal-body">
+                <p class="text-danger">Müşteri ekleme yetkiniz yok.</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="modal fade" id="duzenleModal" tabindex="-1">
+    <div class="modal-dialog">
+        {% if musteri_yetki >= 3 or is_admin %}
+        <form class="modal-content" action="/musteri_guncelle" method="POST">
+            <div class="modal-header bg-warning"><h5>Müşteri Bilgilerini Düzenle</h5></div>
+            <div class="modal-body">
+                <input type="hidden" name="id" id="edit_id">
+                <div class="mb-3">
+                    <label class="small fw-bold">Müşteri Adı</label>
+                    <input type="text" name="ad" id="edit_ad" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label class="small fw-bold">İlgili Kişi</label>
+                    <input type="text" name="ilgili" id="edit_ilgili" class="form-control">
+                </div>
+                <div class="mb-3">
+                    <label class="small fw-bold">Telefon</label>
+                    <input type="text" name="tel" id="edit_tel" class="form-control">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="submit" class="btn btn-warning w-100">Güncelle</button>
+            </div>
+        </form>
+        {% else %}
+        <div class="modal-content">
+            <div class="modal-header bg-warning"><h5>Yetki Yok</h5></div>
+            <div class="modal-body">
+                <p class="text-danger">Müşteri güncelleme yetkiniz yok.</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function duzenleModaliAc(id, ad, ilgili, tel) {
+    document.getElementById('edit_id').value = id;
+    document.getElementById('edit_ad').value = ad;
+    document.getElementById('edit_ilgili').value = ilgili;
+    document.getElementById('edit_tel').value = tel;
+    new bootstrap.Modal(document.getElementById('duzenleModal')).show();
+}
+</script>
+{% endblock %}

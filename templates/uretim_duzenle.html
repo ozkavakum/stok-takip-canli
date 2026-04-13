@@ -1,0 +1,93 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="container py-4">
+    <div class="card shadow border-0 mx-auto" style="max-width: 700px; border-radius: 15px;">
+        <div class="card-header bg-warning text-dark py-3 fw-bold">
+            <i class="fas fa-edit me-2"></i> Üretim Kaydı Düzenle: #{{ u.uretim_no }}
+        </div>
+        <div class="card-body p-4">
+            <form action="/uretim_guncelle/{{ u.id }}" method="POST">
+                
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label small fw-bold">Tarih</label>
+                        <input type="date" class="form-control" name="tarih" value="{{ u.tarih }}" required>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label small fw-bold text-danger">Makine Devri</label>
+                        <input type="number" name="makine_devri" class="form-control border-danger" value="{{ u.makine_devri or 0 }}">
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label small fw-bold">Ürün</label>
+                    <select name="urun_id" class="form-select" required>
+                        <option value="">Ürün Seçiniz...</option>
+                        {% for urun in urunler %}
+                        <option value="{{ urun.id }}" {% if urun.id == u.urun_id %}selected{% endif %}>{{ urun.urun_adi }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label small fw-bold">Operatör</label>
+                        <select name="operator_id" class="form-select">
+                            <option value="">Seçiniz...</option>
+                            {% for op in operatorler %}
+                            <option value="{{ op.id }}" {% if op.id == u.operator_id %}selected{% endif %}>
+                                {{ op.ad_soyad or op.ad }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label small fw-bold">Vardiya</label>
+                        <select name="vardiya" class="form-select">
+                            <option value="1. Vardiya" {% if u.vardiya == '1. Vardiya' %}selected{% endif %}>1. Vardiya</option>
+                            <option value="2. Vardiya" {% if u.vardiya == '2. Vardiya' %}selected{% endif %}>2. Vardiya</option>
+                            <option value="3. Vardiya" {% if u.vardiya == '3. Vardiya' %}selected{% endif %}>3. Vardiya</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row bg-light p-3 rounded border mb-3 mx-0 text-center">
+                    <div class="col-4">
+                        <label class="small fw-bold">Paket</label>
+                        <input type="number" name="paket_sayisi" id="p_count" class="form-control fw-bold" value="{{ u.paket_sayisi }}" oninput="hesapla()">
+                    </div>
+                    <div class="col-4">
+                        <label class="small fw-bold">P. İçi</label>
+                        <input type="number" name="paket_ici_adet" id="p_inner" class="form-control fw-bold" value="{{ u.paket_ici_adet }}" oninput="hesapla()">
+                    </div>
+                    <div class="col-4">
+                        <label class="small fw-bold text-primary">Toplam</label>
+                        <input type="number" id="p_total" class="form-control fw-bold border-primary bg-white" readonly value="{{ u.toplam_adet }}">
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label small fw-bold">Notlar</label>
+                    <textarea name="notlar" class="form-control" rows="2">{{ u.notlar }}</textarea>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <a href="/uretim" class="btn btn-secondary w-50">Vazgeç</a>
+                    <button type="submit" class="btn btn-warning w-50 fw-bold shadow">
+                        <i class="fas fa-save me-1"></i> Değişiklikleri Kaydet
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    function hesapla() {
+        const p = parseFloat(document.getElementById('p_count').value) || 0;
+        const pi = parseFloat(document.getElementById('p_inner').value) || 0;
+        document.getElementById('p_total').value = p * pi;
+    }
+    window.onload = hesapla;
+</script>
+{% endblock %}

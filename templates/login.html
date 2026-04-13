@@ -1,0 +1,29 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="card login-card">
+    <div class="card-body p-5">
+        <h2 class="text-center mb-4">Sistem Girişi</h2>
+        
+        {% with messages = get_flashed_messages() %}
+          {% if messages %}
+            {% for message in messages %}
+              <div class="alert alert-danger">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <form action="/login" method="POST">
+            <div class="mb-3">
+                <label class="form-label">Kullanıcı Adı</label>
+                <input type="text" name="username" class="form-control form-control-lg" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Şifre</label>
+                <input type="password" name="password" class="form-control form-control-lg" required>
+            </div>
+            <button type="submit" class="btn btn-primary w-100 btn-lg">Giriş Yap</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

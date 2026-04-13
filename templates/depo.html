@@ -1,0 +1,111 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold text-dark mb-1"><i class="fas fa-warehouse me-2 text-warning"></i>Depo Takibi</h2>
+            <p class="text-muted small mb-0">Formül: (1. Sayım + 2. Üretim) - 3. Sevk = 4. Kalan Paket</p>
+        </div>
+        <div class="text-end">
+             <a href="{{ url_for('depo_raporu_indir') }}" class="btn btn-success btn-sm shadow-sm">
+                <i class="fas fa-file-excel me-1"></i> Excel Raporu
+            </a>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0" style="border-radius: 15px; overflow: hidden;">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="bg-light small text-uppercase fw-bold">
+                    <tr>
+                        <th class="ps-4 py-3">Ürün Bilgisi</th>
+                        <th class="text-center text-primary">1. FİİLİ SAYIM</th>
+                        <th class="text-center text-success">2. ÜRETİM</th>
+                        <th class="text-center text-danger">3. SEVKİYAT</th>
+                        <th class="text-center bg-dark text-white border-start border-end">4. KALAN (PKT)</th>
+                        <th class="text-center">PAKET İÇİ ADET</th>
+                        <th class="text-center">TOPLAM ADET</th>
+                        <th class="text-center">GRAMAJ</th>
+                        <th class="text-center">TOPLAM KİLO</th>
+                        <th class="text-end pe-4">İŞLEM</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for u in urunler %}
+                    <tr>
+                        <td class="ps-4">
+                            <div class="fw-bold text-dark">{{ u.urun_adi }}</div>
+                            <small class="text-muted">{{ u.gramaj }} Gr</small>
+                        </td>
+                        <td class="text-center fw-bold text-primary">{{ u.depo_sayimi }}</td>
+                        <td class="text-center text-success fw-bold">+ {{ u.uretim_paketi }}</td>
+                        <td class="text-center text-danger fw-bold">- {{ u.sevk_edilen_paket }}</td>
+                        <td class="text-center bg-warning-subtle border-start border-end">
+                            <span class="h5 fw-bold text-dark mb-0">{{ u.kalan_paket }}</span>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-secondary fs-6 px-3">
+                                {{ u.paket_ici }} ADET
+                            </span>
+                        </td>
+                        <td class="text-center">
+                            <div class="fw-bold">{{ u.toplam_adet }}</div>
+                            <small class="text-muted small">Adet</small>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-info fs-6 px-3">
+                                {{ u.gramaj }} GR
+                            </span>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-success fs-6 px-3">
+                                {{ "%.2f"|format(u.toplam_adet * u.gramaj / 1000) }} KG
+                            </span>
+                        </td>
+                        <td class="text-end pe-4">
+                            {% set depo_yetki = session['user_permissions']['depo'] if session['user_permissions'] is defined and 'depo' in session['user_permissions'] else 0 %}
+                            {% if session['user_role'] == 'Admin' or depo_yetki|int >= 2 %}
+                            <button class="btn btn-sm btn-dark shadow-sm" onclick="sayimAc('{{ u.id }}', '{{ u.urun_adi }}', '{{ u.depo_sayimi }}')">
+                                <i class="fas fa-edit me-1"></i> Sayım Gir
+                            </button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="sayimModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <form action="/depo_sayim_guncelle" method="POST" class="modal-content" style="border-radius: 15px;">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold">Fiili Sayım Girişi</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <input type="hidden" name="urun_id" id="sid">
+                <p class="text-primary fw-bold mb-3" id="sad"></p>
+                <div class="text-start">
+                    <label class="form-label small fw-bold">Eldeki Paket Sayısı</label>
+                    <input type="number" name="sayim_miktari" id="smik" class="form-control form-control-lg text-center border-warning" required>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="submit" class="btn btn-warning w-100 fw-bold">SAYIMI KAYDET</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function sayimAc(id, ad, mik) {
+    document.getElementById('sid').value = id;
+    document.getElementById('sad').innerText = ad;
+    document.getElementById('smik').value = mik || 0;
+    new bootstrap.Modal(document.getElementById('sayimModal')).show();
+}
+</script>
+{% endblock %}

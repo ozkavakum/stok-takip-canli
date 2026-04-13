@@ -1,0 +1,22 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow border-0">
+                <div class="card-header bg-dark text-white d-flex justify-content-between">
+                    <h5 class="mb-0">⏰ Vardiya Listesi</h5>
+                    <button class="btn btn-sm btn-light" data-bs-toggle="modal" data-bs-target="#vModal">Vardiya Ekle</button>
+                </div>
+                <div class="card-body p-0">
+                    <ul class="list-group list-group-flush text-center">
+                        {% for v in vardiyalar %}
+                        <li class="list-group-item py-3 h5 mb-0">{{ v.vardiya_adi }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

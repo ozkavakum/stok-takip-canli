@@ -1,0 +1,128 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold text-dark mb-1"><i class="fas fa-edit me-2 text-warning"></i>Sevkiyat Düzenle</h2>
+            <p class="text-muted small">Sevkiyat No: #{{ sevkiyat.id }} bilgilerini güncelliyorsunuz.</p>
+        </div>
+        <a href="/sevkiyat" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left"></i> Vazgeç ve Geri Dön</a>
+    </div>
+
+    <form action="/sevkiyat_guncelle/{{ sevkiyat.id }}" method="POST">
+        <div class="card shadow-sm border-0 mb-4" style="border-radius: 12px;">
+            <div class="card-body row g-3">
+                <div class="col-md-4">
+                    <label class="form-label small fw-bold">Sevkiyat Tarihi</label>
+                    <input type="date" name="tarih" class="form-control" value="{{ sevkiyat.tarih }}" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small fw-bold text-primary">Araç Plakası</label>
+                    <input type="text" name="plaka" class="form-control border-primary" value="{{ sevkiyat.arac_plakasi }}" required>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm border-0" style="border-radius: 12px;">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
+                <h6 class="mb-0 fw-bold text-secondary">Sevkiyat İçeriği (Ürün Bazlı Kilolar)</h6>
+                <button type="button" class="btn btn-outline-primary btn-sm" onclick="yeniSatirEkle()">
+                    <i class="fas fa-plus"></i> Ürün Ekle
+                </button>
+            </div>
+            <div class="card-body">
+                <div id="sevkiyat_urun_alani">
+                    {% for d in detaylar %}
+                    <div class="row g-2 urun-satir mb-2 align-items-end border-bottom pb-3">
+                        <div class="col-md-3">
+                            <label class="small fw-bold">Müşteri</label>
+                            <select name="musteri_id[]" class="form-select form-select-sm" required>
+                                <option value="{{ d.musteri_id }}">{{ d.musteri_adi }}</option>
+                                {% for m in musteriler %}<option value="{{ m.id }}">{{ m.musteri_adi }}</option>{% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="small fw-bold">Ürün</label>
+                            <select name="urun_id[]" class="form-select form-select-sm" required>
+                                <option value="{{ d.urun_id }}">{{ d.urun_adi }}</option>
+                                {% for u in urunler %}<option value="{{ u.id }}">{{ u.urun_adi }}</option>{% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-1">
+                            <label class="small">Paket</label>
+                            <input type="number" name="paket[]" class="form-control form-control-sm" value="{{ d.paket }}">
+                        </div>
+                        <div class="col-md-1">
+                            <label class="small">P.İçi</label>
+                            <input type="number" name="paket_ici[]" class="form-control form-control-sm" value="{{ d.paket_ici }}">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="small fw-bold text-primary">Manuel Kilo Girişi (KG)</label>
+                            <input type="number" step="0.01" name="urun_kilo[]" class="form-control form-control-sm u-kilo-input border-primary fw-bold" 
+                                   value="{{ d.kilo }}" oninput="genelToplamHesapla()" required>
+                        </div>
+                        <div class="col-md-1 text-end">
+                            <button type="button" class="btn btn-link text-danger" onclick="this.closest('.urun-satir').remove(); genelToplamHesapla();">
+                                <i class="fas fa-trash-alt fa-lg"></i>
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="row mt-4 align-items-center border-top pt-4">
+                    <div class="col-md-6 text-end offset-md-6">
+                        <div class="mb-3">
+                            <span class="h5 fw-bold me-3">GÜNCELLENEN TOPLAM:</span>
+                            <span class="h4 fw-bold text-danger" id="genel_toplam_kilo">0.00</span> 
+                            <span class="h5 fw-bold text-danger">KG</span>
+                        </div>
+                        <button type="submit" class="btn btn-warning btn-lg fw-bold px-5 shadow">GÜNCELLEMEYİ KAYDET</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+function genelToplamHesapla() {
+    let toplam = 0;
+    document.querySelectorAll('.u-kilo-input').forEach(el => {
+        toplam += parseFloat(el.value) || 0;
+    });
+    document.getElementById('genel_toplam_kilo').innerText = toplam.toLocaleString('tr-TR', {minimumFractionDigits: 2});
+}
+
+function yeniSatirEkle() {
+    const alan = document.getElementById('sevkiyat_urun_alani');
+    const html = `
+    <div class="row g-2 urun-satir mb-2 align-items-end border-bottom pb-3">
+        <div class="col-md-3">
+            <select name="musteri_id[]" class="form-select form-select-sm" required>
+                <option value="">Müşteri Seç...</option>
+                {% for m in musteriler %}<option value="{{ m.id }}">{{ m.musteri_adi }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-3">
+            <select name="urun_id[]" class="form-select form-select-sm" required>
+                <option value="">Ürün Seç...</option>
+                {% for u in urunler %}<option value="{{ u.id }}">{{ u.urun_adi }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-1"><input type="number" name="paket[]" class="form-control form-control-sm" value="0"></div>
+        <div class="col-md-1"><input type="number" name="paket_ici[]" class="form-control form-control-sm" value="0"></div>
+        <div class="col-md-3">
+            <input type="number" step="0.01" name="urun_kilo[]" class="form-control form-control-sm border-primary u-kilo-input fw-bold" oninput="genelToplamHesapla()" placeholder="Kilo girin..." required>
+        </div>
+        <div class="col-md-1 text-end">
+            <button type="button" class="btn btn-link text-danger" onclick="this.closest('.urun-satir').remove(); genelToplamHesapla();"><i class="fas fa-trash-alt fa-lg"></i></button>
+        </div>
+    </div>`;
+    alan.insertAdjacentHTML('beforeend', html);
+}
+
+// Sayfa ilk açıldığında toplamı bir kez hesapla
+window.onload = genelToplamHesapla;
+</script>
+{% endblock %}

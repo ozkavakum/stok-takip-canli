@@ -1,0 +1,153 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4><i class="fas fa-boxes me-2"></i>Ürün Portföyü</h4>
+        {% set urun_yetki = session['user_permissions']['urun'] if session['user_permissions'] is defined and 'urun' in session['user_permissions'] else 0 %}
+        {% set is_admin = session['user_role'] == 'Admin' %}
+        {% if urun_yetki >= 2 or is_admin %}
+        <button class="btn btn-success shadow-sm" data-bs-toggle="modal" data-bs-target="#urunEkleModal">
+            <i class="fas fa-plus"></i> Yeni Ürün Ekle
+        </button>
+        {% endif %}
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow-sm border-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Kod</th>
+                                <th>Ürün Adı</th>
+                                <th>Gramaj</th>
+                                <th>Paket İçi Adet</th>
+                                <th class="text-end">İşlemler</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for u in urunler %}
+                            <tr style="cursor: pointer;" onclick="onizlemeGuncelle('{{ u.urun_adi }}')">
+                                <td><span class="badge bg-light text-dark">{{ u.urun_kodu }}</span></td>
+                                <td><strong>{{ u.urun_adi }}</strong></td>
+                                <td>{{ u.urun_gr }} gr</td>
+                                <td>{{ u.paket_ici_adet }}</td>
+                                <td class="text-end">
+                                    {% if urun_yetki >= 3 or is_admin %}
+                                    <button class="btn btn-sm btn-outline-warning" 
+                                            onclick="urunDuzenleModalAc('{{ u.id }}', '{{ u.urun_kodu }}', '{{ u.urun_adi }}', '{{ u.urun_gr }}', '{{ u.paket_ici_adet }}')">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    {% endif %}
+                                    {% if urun_yetki >= 4 or is_admin %}
+                                    <a href="/urun_sil/{{ u.id }}" class="btn btn-sm btn-outline-danger" onclick="return confirm('Silsin mi?')">
+                                        <i class="fas fa-trash"></i>
+                                    </a>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="sticky-top" style="top: 80px; z-index: 100;">
+                <div class="card shadow border-0 text-center p-3">
+                    <div class="card-header bg-white border-0 fw-bold">Ürün Görseli</div>
+                    <div id="resim_cerceve" class="d-flex align-items-center justify-content-center border rounded bg-light" style="height: 300px;">
+                        <img id="ana_urun_resmi" src="" class="img-fluid rounded" style="max-height: 280px; display: none;">
+                        <div id="resim_yok_mesaj" class="text-muted">
+                            <i class="fas fa-image fa-3x d-block mb-2"></i>
+                            <small>Resmi görmek için listeden bir ürüne tıklayın</small>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <h5 id="onizleme_baslik" class="mb-0 text-primary">-</h5>
+                        <p id="onizleme_alt" class="small text-muted">Görsel Önizleme</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="urunEkleModal" tabindex="-1">
+    <div class="modal-dialog">
+        {% if urun_yetki >= 2 or is_admin %}
+        <form class="modal-content" action="/urun_ekle" method="POST">
+            <div class="modal-header bg-success text-white"><h5>Yeni Ürün Kaydı</h5></div>
+            <div class="modal-body">
+                <input type="text" name="kod" class="form-control mb-3" placeholder="Ürün Kodu">
+                <input type="text" name="ad" class="form-control mb-3" placeholder="Ürün Adı" required>
+                <input type="text" name="gr" class="form-control mb-3" placeholder="Gramaj (Örn: 500)">
+                <input type="number" name="paket_ici_adet" class="form-control mb-3" placeholder="Paket İçi Adet" min="1" value="1">
+            </div>
+            <div class="modal-footer"><button type="submit" class="btn btn-success w-100">Kaydet</button></div>
+        </form>
+        {% else %}
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white"><h5>Yetki Yok</h5></div>
+            <div class="modal-body">
+                <p class="text-danger">Ürün ekleme yetkiniz yok.</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="modal fade" id="urunDuzenleModal" tabindex="-1">
+    <div class="modal-dialog">
+        {% if urun_yetki >= 3 or is_admin %}
+        <form class="modal-content" action="/urun_guncelle" method="POST">
+            <div class="modal-header bg-warning"><h5>Ürün Düzenle</h5></div>
+            <div class="modal-body">
+                <input type="hidden" name="id" id="edit_u_id">
+                <input type="text" name="kod" id="edit_u_kod" class="form-control mb-3" placeholder="Ürün Kodu">
+                <input type="text" name="ad" id="edit_u_ad" class="form-control mb-3" placeholder="Ürün Adı" required>
+                <input type="text" name="gr" id="edit_u_gr" class="form-control mb-3" placeholder="Gramaj">
+                <input type="number" name="paket_ici_adet" id="edit_u_paket_ici" class="form-control mb-3" placeholder="Paket İçi Adet" min="1">
+            </div>
+            <div class="modal-footer"><button type="submit" class="btn btn-warning w-100">Güncelle</button></div>
+        </form>
+        {% else %}
+        <div class="modal-content">
+            <div class="modal-header bg-warning"><h5>Yetki Yok</h5></div>
+            <div class="modal-body">
+                <p class="text-danger">Ürün güncelleme yetkiniz yok.</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function onizlemeGuncelle(urunAdi) {
+    const img = document.getElementById('ana_urun_resmi');
+    const msg = document.getElementById('resim_yok_mesaj');
+    const baslik = document.getElementById('onizleme_baslik');
+    
+    baslik.innerText = urunAdi;
+    img.src = '/static/urun_resimleri/' + urunAdi + '.jpg';
+    img.style.display = 'block';
+    msg.style.display = 'none';
+    
+    img.onerror = function() {
+        this.style.display = 'none';
+        msg.style.display = 'block';
+    }
+}
+
+function urunDuzenleModalAc(id, kod, ad, gr, paket_ici) {
+    document.getElementById('edit_u_id').value = id;
+    document.getElementById('edit_u_kod').value = kod;
+    document.getElementById('edit_u_ad').value = ad;
+    document.getElementById('edit_u_gr').value = gr;
+    document.getElementById('edit_u_paket_ici').value = paket_ici;
+    new bootstrap.Modal(document.getElementById('urunDuzenleModal')).show();
+}
+</script>
+{% endblock %}

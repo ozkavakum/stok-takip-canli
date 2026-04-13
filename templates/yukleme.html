@@ -1,0 +1,263 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<div class="container-fluid py-4">
+    <h2 class="fw-bold text-dark mb-4"><i class="fas fa-truck-loading me-2 text-warning"></i>Yükleme Hazırlığı</h2>
+
+    {% set yetki = session.get('user_permissions', {}).get('yukleme', 0)|int %}
+    {% set role = session.get('user_role', '') %}
+
+    {% if role == 'Admin' or yetki >= 2 %}
+    <form action="/yukleme_ekle" method="POST" id="yuklemeForm">
+        <div class="card shadow-sm border-0 mb-4" style="border-radius: 12px;">
+            <div class="card-body row g-3">
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">Yükleme Tarihi</label>
+                    <input type="date" name="tarih" class="form-control" value="{{ now_date }}" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold text-primary">Sipariş No (Seçmeli)</label>
+                    <select name="siparis_id" id="siparis_id" class="form-select border-primary shadow-sm">
+                        <option value="">--- Bağımsız (Sipariş Yok) ---</option>
+                        {% for s in siparisler %}
+                        <option value="{{ s.id }}">{{ s.siparis_no }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">Araç Plakası</label>
+                    <input type="text" name="plaka" id="plaka" class="form-control" placeholder="Örn: 34 ABC 123">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">Yükleme Durumu</label>
+                    <select name="durum" class="form-select">
+                        <option value="Hazırlanıyor">Hazırlanıyor</option>
+                        <option value="Araca Yüklendi">Araca Yüklendi</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm border-0" style="border-radius: 12px;">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold text-secondary">Yüklenecek Ürünler</h6>
+                <button type="button" class="btn btn-outline-primary btn-sm" onclick="yeniUrunSatiriEkle()">
+                    <i class="fas fa-plus"></i> Yeni Ürün Ekle
+                </button>
+            </div>
+            <div class="card-body">
+                <div id="urun_listesi_alani"></div>
+            </div>
+            <div class="card-footer bg-light text-end py-3">
+                <button type="reset" class="btn btn-light me-2">Formu Temizle</button>
+                <button type="submit" class="btn btn-warning fw-bold px-5">YÜKLEMEYİ KAYDET</button>
+            </div>
+        </div>
+    </form>
+    {% endif %}
+
+    <div class="card shadow-sm border-0 mt-4" style="border-radius: 12px;">
+        <div class="card-header bg-white py-3">
+            <h6 class="mb-0 fw-bold text-dark"><i class="fas fa-history me-2"></i>Son Yükleme Kayıtları</h6>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="bg-light">
+                    <tr class="small text-uppercase">
+                        <th>No</th>
+                        <th>Tarih</th>
+                        <th>Plaka</th>
+                        <th>Durum</th>
+                        <th class="text-end">İşlemler</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if yuklemeler %}
+                    {% for y in yuklemeler %}
+                    <tr class="small">
+                        <td><span class="badge bg-dark">#{{ y.id }}</span></td>
+                        <td>{{ y.tarih }}</td>
+                        <td><span class="fw-bold">{{ y.arac_plakasi or '---' }}</span></td>
+                        <td>
+                            <span class="badge {% if y.durum == 'Araca Yüklendi' %}bg-success{% else %}bg-warning text-dark{% endif %}">
+                                {{ y.durum }}
+                            </span>
+                        </td>
+                        <td class="text-end">
+                            <div class="btn-group">
+                                <button onclick="toggleDetay({{ y.id }}, this)" class="btn btn-sm btn-info text-white" title="Detayları Göster">
+                                    <i class="fas fa-chevron-down"></i>
+                                </button>
+                                {% if role == 'Admin' or yetki >= 3 %}
+                                <a href="/yukleme_duzenle/{{ y.id }}" class="btn btn-sm btn-outline-primary" title="Düzenle">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                {% endif %}
+                                {% if role == 'Admin' or yetki == 4 %}
+                                <a href="/yukleme_sil/{{ y.id }}" class="btn btn-sm btn-outline-danger" 
+                                   onclick="return confirm('Bu kayıt silinecektir. Emin misiniz?')" title="Sil">
+                                    <i class="fas fa-trash"></i>
+                                </a>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    <tr id="detay-row-{{ y.id }}" style="display: none; background-color: #f8f9fa;">
+                        <td colspan="5" class="p-3">
+                            <div class="card card-body border-0 shadow-sm p-0 overflow-hidden">
+                                <table class="table table-sm table-bordered mb-0">
+                                    <thead class="table-dark small">
+                                        <tr>
+                                            <th>Müşteri</th>
+                                            <th>Ürün</th>
+                                            <th class="text-center">Paket</th>
+                                            <th class="text-center">P.İçi</th>
+                                            <th class="text-center">Toplam Adet</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="detay-icerik-{{ y.id }}">
+                                        </tbody>
+                                </table>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% else %}
+                    <tr><td colspan="5" class="text-center py-4 text-muted">Henüz kayıt bulunmuyor.</td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+window.onload = function() {
+    if (!document.getElementById('siparis_id').value) {
+        yeniUrunSatiriEkle();
+    }
+};
+
+// SATIR İÇİ DETAY GÖSTERME/GİZLEME FONKSİYONU
+function toggleDetay(yid, btn) {
+    const row = document.getElementById('detay-row-' + yid);
+    const icerik = document.getElementById('detay-icerik-' + yid);
+    const icon = btn.querySelector('i');
+
+    if (row.style.display !== 'none') {
+        row.style.display = 'none';
+        icon.classList.replace('fa-chevron-up', 'fa-chevron-down');
+        return;
+    }
+
+    // Veri getiriliyor mesajı
+    icerik.innerHTML = '<tr><td colspan="5" class="text-center py-2"><i class="fas fa-spinner fa-spin me-2"></i>Yükleniyor...</td></tr>';
+    row.style.display = 'table-row';
+    icon.classList.replace('fa-chevron-down', 'fa-chevron-up');
+
+    fetch('/get_yukleme_detay/' + yid)
+        .then(res => res.json())
+        .then(data => {
+            icerik.innerHTML = "";
+            if (data.length === 0) {
+                icerik.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Detay bulunamadı.</td></tr>';
+                return;
+            }
+            data.forEach(item => {
+                icerik.innerHTML += `
+                    <tr class="small">
+                        <td>${item.musteri_adi}</td>
+                        <td>${item.urun_adi}</td>
+                        <td class="text-center">${item.paket}</td>
+                        <td class="text-center">${item.paket_ici}</td>
+                        <td class="text-center fw-bold text-primary">${item.toplam_adet}</td>
+                    </tr>`;
+            });
+        })
+        .catch(err => {
+            icerik.innerHTML = `<tr><td colspan="5" class="text-center text-danger">Hata: ${err.message}</td></tr>`;
+        });
+}
+
+function hesapla(element) {
+    const satir = element.closest('.urun-satir');
+    const p = parseFloat(satir.querySelector('.p-count').value) || 0;
+    const pi = parseFloat(satir.querySelector('.p-inner').value) || 0;
+    satir.querySelector('.p-total').value = (p * pi);
+}
+
+function urunSecildiYukleme(selectElement) {
+    const urunId = selectElement.value;
+    const satir = selectElement.closest('.urun-satir');
+    const piaInput = satir.querySelector('.p-inner');
+    
+    if (!urunId) return;
+    
+    fetch('/get_urun_stok/' + urunId)
+        .then(response => response.json())
+        .then(data => {
+            if (data.paket_ici_adet && (!piaInput.value || piaInput.value == '0')) {
+                piaInput.value = data.paket_ici_adet;
+                hesapla(piaInput);
+            }
+        });
+}
+
+function yeniUrunSatiriEkle(mId = '', uId = '', mAdi = '', uAdi = '', pCount = 0, pInner = 0) {
+    const alan = document.getElementById('urun_listesi_alani');
+    const uniqueId = Date.now() + Math.floor(Math.random() * 100);
+    
+    let html = `
+    <div class="row g-2 urun-satir mb-2 align-items-end" id="satir_${uniqueId}">
+        <div class="col-md-3">
+            <label class="small fw-bold">Müşteri</label>
+            <select name="musteri_id[]" class="form-select form-select-sm" required>
+                <option value="${mId}">${mAdi || 'Seçiniz...'}</option>
+                {% for m in musteriler %}<option value="{{ m.id }}">{{ m.musteri_adi }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="small fw-bold">Ürün</label>
+            <select name="urun_id[]" class="form-select form-select-sm urun-select" required onchange="urunSecildiYukleme(this)">
+                <option value="${uId}">${uAdi || 'Seçiniz...'}</option>
+                {% for u in urunler %}<option value="{{ u.id }}">{{ u.urun_adi }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="small fw-bold">Paket</label>
+            <input type="number" name="paket[]" class="form-control form-control-sm p-count" oninput="hesapla(this)" value="${pCount}" required>
+        </div>
+        <div class="col-md-2">
+            <label class="small fw-bold">P. İçi</label>
+            <input type="number" name="paket_ici[]" class="form-control form-control-sm p-inner" oninput="hesapla(this)" value="${pInner}" required>
+        </div>
+        <div class="col-md-1">
+            <label class="small fw-bold">Toplam</label>
+            <input type="number" class="form-control form-control-sm bg-light p-total" readonly value="${pCount * pInner}">
+        </div>
+        <div class="col-md-1 text-end">
+            <button type="button" class="btn btn-link text-danger p-0" onclick="this.closest('.urun-satir').remove()">
+                <i class="fas fa-times-circle fa-lg"></i>
+            </button>
+        </div>
+    </div>`;
+    
+    alan.insertAdjacentHTML('beforeend', html);
+}
+
+document.getElementById('siparis_id').addEventListener('change', function() {
+    const sid = this.value;
+    const alan = document.getElementById('urun_listesi_alani');
+    if (!sid) { alan.innerHTML = ""; yeniUrunSatiriEkle(); return; }
+
+    fetch('/get_siparis_detay/' + sid)
+        .then(res => res.json())
+        .then(data => {
+            alan.innerHTML = "";
+            data.forEach(item => {
+                yeniUrunSatiriEkle(item.musteri_id, item.urun_id, item.musteri_adi, item.urun_adi, item.paket_sayisi || 0, item.paket_ici_adet || 0);
+            });
+        });
+});
+</script>
+{% endblock %}

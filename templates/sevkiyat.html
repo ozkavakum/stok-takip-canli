@@ -1,0 +1,526 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="container-fluid py-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold text-dark mb-1">
+                <i class="fas fa-shipping-fast me-2 text-primary"></i>Sevkiyat Yönetimi
+            </h2>
+            <p class="text-muted small mb-0">Yükleme seçin ve sevkiyat kaydını tamamlayın.</p>
+        </div>
+    </div>
+
+    {% set sevkiyat_yetki = session.get('user_permissions', {}).get('sevkiyat', 0)|int %}
+    {% set is_admin = session.get('user_role', '') == 'Admin' %}
+
+    {% if sevkiyat_yetki >= 2 or is_admin %}
+    <form action="/sevkiyat_ekle" method="POST" id="sevkiyatForm">
+
+        <!-- ADIM 1: TEMEL BİLGİLER -->
+        <div class="card shadow-sm border-0 mb-3" style="border-radius:12px;">
+            <div class="card-header bg-white py-2 px-4 border-bottom">
+                <span class="fw-bold text-secondary small">
+                    <span class="badge bg-primary me-2">1</span>Temel Bilgiler
+                </span>
+            </div>
+            <div class="card-body row g-3 align-items-end py-3">
+                <div class="col-md-2">
+                    <label class="form-label small fw-bold">Sevkiyat Tarihi</label>
+                    <input type="date" name="tarih" class="form-control" value="{{ now_date }}" required>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small fw-bold text-primary">Yükleme No</label>
+                    <select name="yukleme_id" id="yukleme_id" class="form-select border-primary shadow-sm" onchange="yuklemeSecildi(this)">
+                        <option value="">-- Bağımsız Sevkiyat --</option>
+                        {% for y in yuklemeler %}
+                        <option value="{{ y.id }}" data-plaka="{{ y.arac_plakasi }}">
+                            Yükleme #{{ y.id }} — {{ y.arac_plakasi }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small fw-bold">Araç Plakası</label>
+                    <input type="text" name="plaka" id="plaka" class="form-control" placeholder="34 ABC 123" required>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small fw-bold text-info">Müşteri Adı</label>
+                    <select name="musteri_id" id="musteri_id" class="form-select">
+                        <option value="">-- Müşteri Seçin --</option>
+                        {% for m in musteriler %}
+                        <option value="{{ m.id }}">{{ m.musteri_adi }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small fw-bold text-danger">Toplam Kilo (KG)</label>
+                    <input type="number" step="0.01" name="toplam_kilo_input"
+                           class="form-control border-danger fw-bold" placeholder="Kantardan girin..." required>
+                </div>
+            </div>
+        </div>
+
+        <!-- ADIM 2: YÜKLEMEDEKİ MÜŞTERİ VE ÜRÜNLER -->
+        <div id="yukleme_bilgi_karti" class="card shadow-sm border-0 mb-3 d-none" style="border-radius:12px;">
+            <div class="card-header bg-white py-2 px-4 border-bottom">
+                <span class="fw-bold text-secondary small">
+                    <span class="badge bg-primary me-2">2</span>Yüklemedeki Ürünler (Düzenlenebilir)
+                </span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0" id="yukleme_urun_tablosu">
+                        <thead class="table-light small text-uppercase">
+                            <tr>
+                                <th class="ps-4">Müşteri</th>
+                                <th>Ürün</th>
+                                <th class="text-center">Paket</th>
+                                <th class="text-center">P.İçi</th>
+                                <th class="text-center">Toplam Adet</th>
+                            </tr>
+                        </thead>
+                        <tbody id="yukleme_urun_tbody">
+                            <tr><td colspan="5" class="text-center text-muted py-3">Yükleme seçin...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Hidden inputs for form -->
+        <div id="hidden_inputs"></div>
+
+        <!-- KAYDET -->
+        <div class="card shadow-sm border-0 mb-4" style="border-radius:12px;">
+            <div class="card-body d-flex justify-content-between align-items-center py-3">
+                <div id="ozet_bilgi" class="text-muted small">
+                    Forma başlamak için yükleme seçin.
+                </div>
+                <button type="submit" class="btn btn-primary btn-lg fw-bold px-5 shadow" id="kaydet_btn">
+                    <i class="fas fa-save me-2"></i>SEVKİYATI KAYDET
+                </button>
+            </div>
+        </div>
+
+    </form>
+    {% else %}
+    <div class="alert alert-warning">Bu alanda işlem yapma yetkiniz yok.</div>
+    {% endif %}
+
+    <!-- GEÇMİŞ SEVKİYATLAR -->
+    <div class="card shadow-sm border-0 mt-3" style="border-radius:12px;">
+        <div class="card-header bg-light py-3 d-flex justify-content-between align-items-center">
+            <h6 class="mb-0 fw-bold text-dark">
+                <i class="fas fa-history me-2 text-secondary"></i>Son Sevkiyatlar
+            </h6>
+            <a href="{{ url_for('sevkiyat_raporu_indir') }}" class="btn btn-dark btn-sm">
+                <i class="fas fa-file-excel me-1 text-success"></i> Rapor İndir
+            </a>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="small text-uppercase bg-white border-bottom">
+                    <tr>
+                        <th class="ps-4">No</th>
+                        <th>Tarih</th>
+                        <th>Plaka</th>
+                        <th class="text-center">Toplam Kilo</th>
+                        <th class="text-end pe-4">İşlemler</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in sevkiyatlar %}
+                    <tr>
+                        <td class="ps-4"><span class="badge bg-dark">#{{ s.id }}</span></td>
+                        <td class="small">{{ s.tarih }}</td>
+                        <td class="small fw-bold">{{ s.arac_plakasi }}</td>
+                        <td class="text-center fw-bold text-primary">{{ s.toplam_kilo }} KG</td>
+                        <td class="text-end pe-4">
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-info me-1"
+                                    onclick="detayAc({{ s.id }}, this)">
+                                <i class="fas fa-chevron-down"></i>
+                            </button>
+                            {% if sevkiyat_yetki >= 3 or is_admin %}
+                            <a href="/sevkiyat_duzenle/{{ s.id }}" class="btn btn-sm btn-outline-warning me-1">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            {% endif %}
+                            {% if sevkiyat_yetki >= 4 or is_admin %}
+                            <a href="/sevkiyat_sil/{{ s.id }}" class="btn btn-sm btn-outline-danger"
+                               onclick="return confirm('Silmek istediğinize emin misiniz?')">
+                                <i class="fas fa-trash"></i>
+                            </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <!-- Açılır detay satırı -->
+                    <tr id="detay-row-{{ s.id }}" style="display:none; background:#f8fbff;">
+                        <td colspan="5" class="p-0">
+                            <div class="px-4 py-3">
+                                <div class="fw-bold small text-primary mb-2">
+                                    <i class="fas fa-boxes me-1"></i> Yüklenen Ürünler
+                                </div>
+                                <table class="table table-sm table-bordered mb-0" style="border-radius:8px; overflow:hidden;">
+                                    <thead class="table-primary small">
+                                        <tr>
+                                            <th>Müşteri</th>
+                                            <th>Ürün</th>
+                                            <th class="text-center">Paket</th>
+                                            <th class="text-center">P.İçi</th>
+                                            <th class="text-center">Toplam Adet</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="detay-icerik-{{ s.id }}">
+                                        <tr><td colspan="5" class="text-center py-2">
+                                            <i class="fas fa-spinner fa-spin"></i>
+                                        </td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ZXing -->
+<script src="https://unpkg.com/@zxing/library@latest/umd/index.min.js"></script>
+
+<script>
+// ========== VERİ ==========
+let okutulanEtiketler = [];  // {barkod_no, urun_adi, urun_id, paket_ici_adet, musteri_id, musteri_adi}
+let codeReader = null;
+let kameraAcikMi = false;
+let sonOkunanZaman = 0;  // aynı QR'ın ard arda okunmasını engelle
+
+// ========== YÜKLEME SEÇİLDİ ==========
+function yuklemeSecildi(sel) {
+    const yid = sel.value;
+    const plaka = sel.options[sel.selectedIndex].getAttribute('data-plaka') || '';
+    document.getElementById('plaka').value = plaka;
+
+    const bilgiKarti = document.getElementById('yukleme_bilgi_karti');
+    const tbody = document.getElementById('yukleme_urun_tbody');
+    const musteriSelect = document.getElementById('musteri_id');
+
+    // Bağımsız sevkiyat seçilince
+    if (!yid) {
+        bilgiKarti.classList.add('d-none');
+        window._yuklemeUrunler = null;
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">Yükleme seçin...</td></tr>';
+        musteriSelect.value = '';  // Müşteri dropdown'ı sıfırla (tüm müşteriler görülür)
+        return;
+    }
+
+    // Yükleme seçilince detayları çek
+    tbody.innerHTML = '<tr><td colspan="5" class="text-center py-3"><i class="fas fa-spinner fa-spin"></i></td></tr>';
+    bilgiKarti.classList.remove('d-none');
+
+    fetch('/get_yukleme_detay/' + yid)
+        .then(r => r.json())
+        .then(data => {
+            console.log('API Response:', data);
+            if (data.error || !data.length) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">Bu yüklemede ürün bulunamadı.</td></tr>';
+                return;
+            }
+            window._yuklemeUrunler = data;
+            console.log('Loaded data:', window._yuklemeUrunler);
+            
+            // Müşteri ID'yi seçilen yüklemenin ilk detayından alalım
+            if (data[0] && data[0].musteri_id) {
+                musteriSelect.value = data[0].musteri_id;
+            }
+            
+            tabloYuklemeGuncelle();
+        })
+        .catch((err) => {
+            console.error('Fetch error:', err);
+            tbody.innerHTML = '<tr><td colspan="5" class="text-danger text-center py-3">Yükleme detayı alınamadı!</td></tr>';
+        });
+}
+
+function bagimsisMusteriSecildi(sel) {
+    window._bagimsizMusteriId = sel.value;
+    window._bagimsizMusteriAd = sel.options[sel.selectedIndex].getAttribute('data-ad') || '';
+}
+
+function tabloYuklemeGuncelle() {
+    const data = window._yuklemeUrunler || [];
+    console.log('tabloYuklemeGuncelle called with:', data);
+    const tbody = document.getElementById('yukleme_urun_tbody');
+    const hidden = document.getElementById('hidden_inputs');
+    
+    tbody.innerHTML = '';
+    hidden.innerHTML = '';
+
+    if (!data || data.length === 0) {
+        console.warn('No data to display');
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">Ürün bulunamadı.</td></tr>';
+        return;
+    }
+
+    let hiddenHtml = '';
+    data.forEach((item, idx) => {
+        console.log('Processing item:', item);
+        tbody.innerHTML += `<tr class="small">
+            <td class="ps-4">
+                <span>${item.musteri_adi || 'N/A'}</span>
+            </td>
+            <td>
+                <span>${item.urun_adi}</span>
+            </td>
+            <td class="text-center">
+                <input type="number" name="paket[]" class="form-control form-control-sm" style="width:70px;" value="${item.paket}" min="0">
+            </td>
+            <td class="text-center">
+                <span>${item.paket_ici}</span>
+            </td>
+            <td class="text-center">
+                <span class="fw-bold text-primary">${item.toplam_adet}</span>
+            </td>
+        </tr>`;
+
+        // Tüm hidden inputs'ları hidden div'ine ekle
+        hiddenHtml += `
+            <input type="hidden" name="yukleme_detay_id[]" value="${item.id || ''}">
+            <input type="hidden" name="musteri_id[]" value="${item.musteri_id || ''}">
+            <input type="hidden" name="urun_id[]" value="${item.urun_id}">
+            <input type="hidden" name="paket_ici[]" value="${item.paket_ici}">`;
+    });
+
+    hidden.innerHTML = hiddenHtml;
+}
+
+// ========== ETİKET EKLE ==========
+function barkodEkle(barkodNo) {
+    barkodNo = barkodNo || document.getElementById('barkod_input').value.trim();
+    if (!barkodNo) return;
+
+    // Aynı barkod kontrolü
+    if (okutulanEtiketler.find(e => e.barkod_no === barkodNo)) {
+        inputUyar('⚠️ Bu etiket zaten okutuldu!');
+        return;
+    }
+
+    fetch('/get_barkod_bilgi/' + encodeURIComponent(barkodNo))
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) {
+                inputUyar('❌ Barkod bulunamadı!');
+                return;
+            }
+
+            // Yükleme seçiliyse müşteri bilgisini yüklemeden al
+            // Bağımsız sevkiyatta seçilen müşteriyi kullan
+            let musteriId = null;
+            let musteriAdi = '—';
+
+            if (window._yuklemeUrunler) {
+                const eslesen = window._yuklemeUrunler.find(u => u.urun_id == data.urun_id);
+                if (eslesen) {
+                    musteriId = eslesen.musteri_id;
+                    musteriAdi = eslesen.musteri_adi;
+                }
+            } else if (window._bagimsizMusteriId) {
+                musteriId = window._bagimsizMusteriId;
+                musteriAdi = window._bagimsizMusteriAd;
+            }
+
+            const etiket = {
+                barkod_no: barkodNo,
+                urun_id: data.urun_id,
+                urun_adi: data.urun_adi,
+                paket_ici_adet: data.paket_ici_adet,
+                musteri_id: musteriId,
+                musteri_adi: musteriAdi
+            };
+
+            okutulanEtiketler.push(etiket);
+            etiketListesiniGuncelle();
+            if (window._yuklemeUrunler) tabloYuklemeGuncelle();
+            document.getElementById('barkod_input').value = '';
+            if (navigator.vibrate) navigator.vibrate(80);
+        })
+        .catch(() => inputUyar('❌ Bağlantı hatası!'));
+}
+
+function inputUyar(mesaj) {
+    const input = document.getElementById('barkod_input');
+    input.value = '';
+    input.placeholder = mesaj;
+    input.classList.add('border-danger', 'bg-danger', 'bg-opacity-10');
+    setTimeout(() => {
+        input.placeholder = 'QR kodu okutun veya yazın...';
+        input.classList.remove('border-danger', 'bg-danger', 'bg-opacity-10');
+    }, 2000);
+}
+
+function etiketSil(index) {
+    okutulanEtiketler.splice(index, 1);
+    etiketListesiniGuncelle();
+    if (window._yuklemeUrunler) tabloYuklemeGuncelle();
+}
+
+function etiketListesiniGuncelle() {
+    const alan = document.getElementById('etiket_listesi_alani');
+    const tbody = document.getElementById('etiket_tbody');
+    const hidden = document.getElementById('hidden_inputs');
+    const sayac = document.getElementById('toplam_etiket_sayac');
+    const ozet = document.getElementById('ozet_bilgi');
+
+    sayac.textContent = okutulanEtiketler.length + ' Etiket';
+    sayac.className = okutulanEtiketler.length > 0
+        ? 'badge bg-success fs-6 px-3'
+        : 'badge bg-secondary fs-6 px-3';
+
+    if (!okutulanEtiketler.length) {
+        alan.classList.add('d-none');
+        hidden.innerHTML = '';
+        ozet.textContent = 'Henüz etiket okutulmadı.';
+        return;
+    }
+
+    alan.classList.remove('d-none');
+
+    // Özet
+    const urunGrubu = {};
+    okutulanEtiketler.forEach(e => {
+        if (!urunGrubu[e.urun_adi]) urunGrubu[e.urun_adi] = 0;
+        urunGrubu[e.urun_adi]++;
+    });
+    ozet.innerHTML = Object.entries(urunGrubu)
+        .map(([urun, adet]) => `<span class="badge bg-primary me-1">${urun}: ${adet} etiket</span>`)
+        .join('');
+
+    // Tablo
+    tbody.innerHTML = '';
+    hidden.innerHTML = '';
+    okutulanEtiketler.forEach((e, i) => {
+        tbody.innerHTML += `<tr class="small">
+            <td class="text-center fw-bold text-primary">${i + 1}</td>
+            <td><code style="font-size:0.72rem;">${e.barkod_no}</code></td>
+            <td class="fw-bold">${e.urun_adi}</td>
+            <td class="text-center">${e.paket_ici_adet}</td>
+            <td class="text-center">
+                <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2"
+                        onclick="etiketSil(${i})">
+                    <i class="fas fa-times"></i>
+                </button>
+            </td>
+        </tr>`;
+
+        hidden.innerHTML += `
+            <input type="hidden" name="barkod_no[]" value="${e.barkod_no}">
+            <input type="hidden" name="musteri_id[]" value="${e.musteri_id || ''}">
+            <input type="hidden" name="urun_id[]" value="${e.urun_id}">
+            <input type="hidden" name="paket[]" value="1">
+            <input type="hidden" name="paket_ici[]" value="${e.paket_ici_adet}">
+            <input type="hidden" name="urun_kilo[]" value="0">`;
+    });
+}
+
+
+
+// ========== KAMERA ==========
+function kameraToggle() {
+    if (kameraAcikMi) {
+        kameraKapat();
+    } else {
+        kameraAc();
+    }
+}
+
+function kameraAc() {
+    const alan = document.getElementById('kamera_alani');
+    const btn = document.getElementById('kamera_btn');
+    alan.style.display = 'block';
+    btn.innerHTML = '<i class="fas fa-stop me-1"></i> Kamerayı Kapat';
+    btn.classList.replace('btn-warning', 'btn-danger');
+    kameraAcikMi = true;
+
+    codeReader = new ZXing.BrowserMultiFormatReader();
+    codeReader.listVideoInputDevices().then(devices => {
+        if (!devices.length) {
+            alert('Kamera bulunamadı!');
+            kameraKapat();
+            return;
+        }
+        const arka = devices.find(d =>
+            d.label.toLowerCase().includes('back') ||
+            d.label.toLowerCase().includes('arka') ||
+            d.label.toLowerCase().includes('environment')
+        ) || devices[devices.length - 1];
+
+        codeReader.decodeFromVideoDevice(arka.deviceId, 'kamera_video', (result, err) => {
+            if (result) {
+                const simdi = Date.now();
+                const kod = result.getText();
+                // Aynı kodu 2 saniye içinde tekrar okuma
+                if (simdi - sonOkunanZaman > 2000) {
+                    sonOkunanZaman = simdi;
+                    barkodEkle(kod);
+                }
+            }
+        });
+    }).catch(err => {
+        alert('Kamera hatası: ' + err);
+        kameraKapat();
+    });
+}
+
+function kameraKapat() {
+    if (codeReader) { codeReader.reset(); codeReader = null; }
+    kameraAcikMi = false;
+    document.getElementById('kamera_alani').style.display = 'none';
+    const btn = document.getElementById('kamera_btn');
+    btn.innerHTML = '<i class="fas fa-camera me-1"></i> Kamera Aç';
+    btn.classList.replace('btn-danger', 'btn-warning');
+}
+
+// ========== GEÇMİŞ DETAY ==========
+function detayAc(sid, btn) {
+    const row = document.getElementById('detay-row-' + sid);
+    const tbody = document.getElementById('detay-icerik-' + sid);
+    const icon = btn.querySelector('i');
+
+    if (row.style.display !== 'none') {
+        row.style.display = 'none';
+        icon.classList.replace('fa-chevron-up', 'fa-chevron-down');
+        return;
+    }
+
+    row.style.display = 'table-row';
+    icon.classList.replace('fa-chevron-down', 'fa-chevron-up');
+
+    fetch('/get_sevkiyat_detaylari/' + sid)
+        .then(r => r.json())
+        .then(data => {
+            if (!data.length) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-2">Detay bulunamadı.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = data.map(d => `
+                <tr class="small">
+                    <td class="ps-3 fw-bold">${d.musteri_adi}</td>
+                    <td>${d.urun_adi}</td>
+                    <td class="text-center">${d.paket}</td>
+                    <td class="text-center">${d.paket_ici}</td>
+                    <td class="text-center fw-bold text-success">${d.paket * d.paket_ici}</td>
+                </tr>`).join('');
+        });
+}
+
+// Sayfa yüklenince bağımsız müşteri alanını göster (default bağımsız)
+window.onload = () => {
+    document.getElementById('bagimsiz_musteri_alani').style.display = 'block';
+    document.getElementById('barkod_input').focus();
+};
+</script>
+
+{% endblock %}

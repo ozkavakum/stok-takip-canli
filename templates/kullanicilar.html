@@ -1,0 +1,135 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="h4 mb-0 text-gray-800"><i class="fas fa-users-cog me-2"></i>Kullanıcı ve Yetki Yönetimi</h2>
+        <button class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#userModal">
+            <i class="fas fa-user-plus me-1"></i> Yeni Kullanıcı
+        </button>
+    </div>
+
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        {% for message in messages %}
+          <div class="alert alert-info alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div class="row">
+        {% for u in users %}
+        <div class="col-xl-6 col-lg-12 mb-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <div>
+                        <span class="badge {% if u.rol == 'Admin' %}bg-danger{% else %}bg-primary{% endif %} mb-1">
+                            {{ u.rol }} {% if u.rol == 'Admin' %}<i class="fas fa-shield-alt ms-1"></i>{% endif %}
+                        </span>
+                        <h5 class="mb-0 font-weight-bold text-dark">{{ u.ad_soyad }}</h5>
+                        <small class="text-muted">@{{ u.kullanici_adi }}</small>
+                    </div>
+                    <i class="fas fa-user-circle fa-3x text-light"></i>
+                </div>
+                
+                <div class="card-body">
+                    <form action="/yetki_guncelle" method="POST">
+                        <input type="hidden" name="user_id" value="{{ u.id }}">
+                        
+                        <div class="table-responsive">
+                            <table class="table table-sm table-borderless align-middle">
+                                <thead class="text-muted small uppercase">
+                                    <tr>
+                                        <th>SAYFA / MODÜL</th>
+                                        <th>YETKİ SEVİYESİ</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {# Yetki Ataması Yapılacak Sayfaların Listesi #}
+                                    {% set sayfalar = [
+                                        ('yetki_siparis', 'Sipariş Yönetimi'),
+                                        ('yetki_isemri', 'İş Emri Paneli'),
+                                        ('yetki_uretim', 'Üretim Takibi'),
+                                        ('yetki_yukleme', 'Yükleme Hazırlık'),
+                                        ('yetki_sevkiyat', 'Sevkiyat Paneli'),
+                                        ('yetki_depo', 'Depo/Stok Durumu'),
+                                        ('yetki_musteri', 'Müşteri Kayıtları'),
+                                        ('yetki_urun', 'Ürün Portföyü'),
+                                        ('yetki_personel', 'Personel Listesi'),
+                                        ('yetki_operator', 'Operatör Listesi')
+                                    ] %}
+
+                                    {% for key, label in sayfalar %}
+                                    <tr>
+                                        <td class="small fw-bold">{{ label }}</td>
+                                        <td>
+                                            <select name="{{ key }}" class="form-select form-select-sm">
+                                                <option value="0" {% if u[key] == 0 %}selected{% endif %}>0 - Yetki Yok</option>
+                                                <option value="1" {% if u[key] == 1 %}selected{% endif %}>1 - Sadece Görür</option>
+                                                <option value="2" {% if u[key] == 2 %}selected{% endif %}>2 - Gör + İşlem Yap</option>
+                                                <option value="3" {% if u[key] == 3 %}selected{% endif %}>3 - Gör + İşlem + Düzenle</option>
+                                                <option value="4" {% if u[key] == 4 %}selected{% endif %}>4 - Tam Yetki (Silme Dahil)</option>
+                                            </select>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="d-grid gap-2 mt-3">
+                            <button type="submit" class="btn btn-success btn-sm">
+                                <i class="fas fa-save me-1"></i> Yetkileri Kaydet
+                            </button>
+                            <a href="/kullanici_sil/{{ u.id }}" class="btn btn-link text-danger btn-sm" onclick="return confirm('Bu kullanıcıyı silmek istediğinize emin misiniz?')">
+                                Kullanıcıyı Tamamen Kaldır
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+{# Yeni Kullanıcı Modalı (Aynı Kalabilir ama Görselini Düzelttim) #}
+<div class="modal fade" id="userModal" tabindex="-1">
+    <div class="modal-dialog">
+        <form class="modal-content border-0 shadow" action="/kullanici_ekle" method="POST">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">Yeni Kullanıcı Oluştur</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted">AD SOYAD</label>
+                    <input type="text" name="ad_soyad" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted">KULLANICI ADI</label>
+                    <input type="text" name="kadi" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted">ŞİFRE</label>
+                    <input type="password" name="sifre" class="form-control" required>
+                </div>
+                <div class="mb-0">
+                    <label class="form-label small fw-bold text-muted">VARSAYILAN ROL</label>
+                    <select name="rol" class="form-select">
+                        <option value="Kullanıcı">Kullanıcı</option>
+                        <option value="Operatör">Operatör</option>
+                        <option value="Admin">Admin</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                <button type="submit" class="btn btn-primary px-4">Oluştur</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,173 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="container py-4">
+
+    {% if kritik_urunler %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="alert alert-danger shadow-sm border-0" style="border-radius: 15px; background-color: #f8d7da;">
+                <h5 class="alert-heading fw-bold text-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i> Kritik Stok Uyarısı (100 Adet Altı)
+                </h5>
+                <hr>
+                <div class="d-flex flex-wrap gap-2">
+                    {% for urun in kritik_urunler %}
+                    <span class="badge bg-white text-danger border border-danger p-2" style="font-size: 0.9rem;">
+                        {{ urun.urun_adi }}: <span class="fw-bold">{{ urun.stok_miktari }} Adet</span>
+                    </span>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="row g-4 text-center">
+        <div class="col-12 mb-2">
+            <h3 class="fw-bold">İşlem Menüsü</h3>
+            <p class="text-muted">Hoş geldin, <strong>{{ session.get('user_name', 'Misafir') }}</strong></p>
+        </div>
+
+        {% set perms = session.get('user_permissions', {}) %}
+        {% set role = session.get('user_role', '') %}
+
+        {# SİPARİŞLER #}
+        {% if role == 'Admin' or perms.get('siparis', 0)|int >= 1 %}
+        <div class="col-6 col-md-4">
+           <div class="card card-menu shadow-sm p-4" onclick="location.href='/siparisler'">
+              <div class="icon-box text-primary mb-2"><i class="fas fa-shopping-cart fa-2x"></i></div>
+              <h6 class="fw-bold">Siparişler</h6>
+           </div>
+        </div>
+        {% endif %}
+
+        {# İŞ EMRİ #}
+        {% if role == 'Admin' or perms.get('isemri', 0)|int >= 1 %}
+        <div class="col-6 col-md-4">
+           <div class="card card-menu shadow-sm p-4" onclick="location.href='/is_emirleri'">
+              <div class="icon-box text-secondary mb-2"><i class="fas fa-file-invoice fa-2x"></i></div>
+              <h6 class="fw-bold">İş Emirleri</h6>
+           </div>
+        </div>
+        {% endif %}
+
+        {# OPERATÖRLER #}
+        {% if role == 'Admin' or perms.get('operator', 0)|int >= 1 %}
+        <div class="col-6 col-md-4">
+            <div class="card card-menu shadow-sm p-4" onclick="location.href='/operatorler'">
+                <div class="icon-box text-success mb-2"><i class="fas fa-user-tie fa-2x"></i></div>
+                <h6 class="fw-bold">Operatörler</h6>
+            </div>
+        </div>
+        {% endif %}
+
+        {# ÜRETİM TAKİBİ #}
+        {% if role == 'Admin' or perms.get('uretim', 0)|int >= 1 %}
+        <div class="col-6 col-md-4">
+            <div class="card card-menu shadow-sm p-4" onclick="location.href='/uretim'">
+                <div class="icon-box text-success mb-2"><i class="fas fa-industry fa-2x"></i></div>
+                <h6 class="fw-bold">Üretim Takibi</h6>
+            </div>
+        </div>
+        {% endif %}
+
+        {# YÜKLEME HAZIRLIK #}
+        {% if role == 'Admin' or perms.get('yukleme', 0)|int >= 1 %}
+        <div class="col-6 col-md-4">
+            <div class="card card-menu shadow-sm p-4" onclick="location.href='/yukleme'">
+                <div class="icon-box text-muted mb-2"><i class="fas fa-box-open fa-2x"></i></div>
+                <h6 class="fw-bold">Yükleme Hazırlık</h6>
+            </div>
+        </div>
+        {% endif %}
+
+        {# SEVKİYAT #}
+        {% if role == 'Admin' or perms.get('sevkiyat', 0)|int >= 1 %}
+        <div class="col-6 col-md-4">
+            <div class="card card-menu shadow-sm p-4" onclick="location.href='/sevkiyat'">
+                <div class="icon-box text-info mb-2"><i class="fas fa-truck-loading fa-2x"></i></div>
+                <h6 class="fw-bold">Sevkiyat Paneli</h6>
+            </div>
+        </div>
+        {% endif %}
+
+        {# STOK/DEPO #}
+        {% if role == 'Admin' or perms.get('depo', 0)|int >= 1 %}
+        <div class="col-6 col-md-4">
+            <div class="card card-menu shadow-sm p-4" onclick="location.href='/depo'">
+                <div class="icon-box text-warning mb-2"><i class="fas fa-warehouse fa-2x"></i></div>
+                <h6 class="fw-bold">Stok/Depo Durumu</h6>
+            </div>
+        </div>
+        {% endif %}
+
+        {# MÜŞTERİLER #}
+        {% if role == 'Admin' or perms.get('musteri', 0)|int >= 1 %}
+        <div class="col-6 col-md-4">
+            <div class="card card-menu shadow-sm p-4" onclick="location.href='/musteriler'">
+                <div class="icon-box text-danger mb-2"><i class="fas fa-address-book fa-2x"></i></div>
+                <h6 class="fw-bold">Müşteriler</h6>
+            </div>
+        </div>
+        {% endif %}
+
+        {# ÜRÜNLER #}
+        {% if role == 'Admin' or perms.get('urun', 0)|int >= 1 %}
+        <div class="col-6 col-md-4">
+            <div class="card card-menu shadow-sm p-4" onclick="location.href='/urunler'">
+                <div class="icon-box text-dark mb-2"><i class="fas fa-boxes fa-2x"></i></div>
+                <h6 class="fw-bold">Ürün Portföyü</h6>
+            </div>
+        </div>
+        {% endif %}
+
+        {# PERSONEL #}
+        {% if role == 'Admin' or perms.get('personel', 0)|int >= 1 %}
+        <div class="col-6 col-md-4">
+            <div class="card card-menu shadow-sm p-4" onclick="location.href='/personel'">
+                <div class="icon-box text-primary mb-2"><i class="fas fa-user-friends fa-2x"></i></div>
+                <h6 class="fw-bold">Personel Listesi</h6>
+            </div>
+        </div>
+        {% endif %}
+
+        {# YETKİ PANELİ #}
+        {% if role == 'Admin' %}
+        <div class="col-6 col-md-4">
+            <div class="card card-menu shadow-sm border-danger p-4" onclick="location.href='/kullanicilar'">
+                <div class="icon-box text-danger mb-2"><i class="fas fa-user-shield fa-2x"></i></div>
+                <h6 class="fw-bold text-danger">Yetki Paneli</h6>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+    .card-menu { 
+        cursor: pointer; 
+        transition: all 0.3s ease; 
+        border: none; 
+        border-radius: 15px; 
+        background: #ffffff;
+        height: 100%;
+        min-height: 150px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+    .card-menu:hover { 
+        transform: translateY(-5px); 
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1) !important;
+        background: #f8f9fa; 
+    }
+    .icon-box { 
+        height: 60px; 
+        display: flex; 
+        align-items: center; 
+        justify-content: center; 
+    }
+    h6 { font-size: 0.95rem; margin-top: 10px; }
+</style>
+{% endblock %}

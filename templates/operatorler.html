@@ -1,0 +1,72 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="fw-bold text-dark"><i class="fas fa-user-tie me-2 text-primary"></i>Operatör Yönetimi</h4>
+        <button class="btn btn-primary shadow" data-bs-toggle="modal" data-bs-target="#opModal">
+            <i class="fas fa-plus-circle me-1"></i> Yeni Operatör Ekle
+        </button>
+    </div>
+
+    <div class="card shadow-sm border-0" style="border-radius: 12px;">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="ps-4">Ad</th>
+                            <th>Soyadı</th>
+                            <th>Telefon No</th>
+                            <th>Kayıt Tarihi</th>
+                            <th class="text-end pe-4">İşlem</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for op in operatorler %}
+                        <tr>
+                            <td class="ps-4 fw-bold">{{ op.ad }}</td>
+                            <td>{{ op.soyadi }}</td>
+                            <td>{{ op.telefon_no or '-' }}</td>
+                            <td>{{ op.kayit_tarihi.strftime('%d.%m.%Y') if op.kayit_tarihi }}</td>
+                            <td class="text-end pe-4">
+                                <a href="/operator_sil/{{ op.id }}" class="btn btn-sm btn-outline-danger" onclick="return confirm('Bu operatörü silmek istediğinize emin misiniz?')">
+                                    <i class="fas fa-trash"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="opModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content shadow-lg border-0" action="/operator_ekle" method="POST">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">Yeni Operatör Kaydı</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="mb-3">
+                    <label class="form-label fw-bold text-muted small">AD</label>
+                    <input type="text" name="ad" class="form-control" placeholder="Operatörün Adı" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold text-muted small">SOYADI</label>
+                    <input type="text" name="soyadi" class="form-control" placeholder="Operatörün Soyadı" required>
+                </div>
+                <div class="mb-0">
+                    <label class="form-label fw-bold text-muted small">TELEFON NO</label>
+                    <input type="text" name="telefon_no" class="form-control" placeholder="05XX XXX XX XX">
+                </div>
+            </div>
+            <div class="modal-footer bg-light border-0">
+                <button type="submit" class="btn btn-primary w-100 py-2 fw-bold">Operatörü Kaydet</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

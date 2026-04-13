@@ -1,0 +1,264 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold text-dark mb-1"><i class="fas fa-industry me-2 text-primary"></i>Üretim Takibi</h2>
+            <p class="text-muted small mb-0">Üretim kayıtlarını yönetin ve stokları güncelleyin.</p>
+        </div>
+        <div class="text-end">
+            <span class="badge bg-white text-dark shadow-sm border px-3 py-2">
+                <i class="far fa-calendar-alt me-1 text-primary"></i> {{ now }}
+            </span>
+            <span class="badge bg-primary shadow-sm px-3 py-2 ms-2">
+                <i class="fas fa-hashtag me-1"></i> Yeni No: {{ uretim_no }}
+            </span>
+        </div>
+    </div>
+
+    {% set yetki = session.get('user_permissions', {}).get('uretim', 0)|int %}
+    {% set role = session.get('user_role', '') %}
+
+    {% if role == 'Admin' or yetki >= 2 %}
+    <div class="card shadow-sm border-0 mb-4" style="border-radius: 12px;">
+        <div class="card-header bg-white py-3 border-bottom-0">
+            <h5 class="card-title mb-0 text-primary fw-bold">
+                <i class="fas fa-plus-circle me-2"></i>Yeni Üretim Kaydı Ekle
+            </h5>
+        </div>
+        <div class="card-body pt-0">
+            <form action="/uretim_ekle" method="POST" class="row g-3">
+                <input type="hidden" name="uretim_no" value="{{ uretim_no }}">
+
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">İş Emri Seçimi (Opsiyonel)</label>
+                    <select name="is_emri_id" id="is_emri_id" class="form-select border-primary shadow-sm">
+                        <option value="">--- Bağımsız Üretim ---</option>
+                        {% for ie in is_emirleri %}
+                        <option value="{{ ie.id }}">{{ ie.is_emri_no }} ({{ ie.urun_adi }})</option>
+                        {% endfor %}
+                    </select>
+                    <div id="isEmriBilgi" class="form-text text-info d-none">
+                        <i class="fas fa-info-circle"></i> İş emri bilgileri yüklendi.
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">Ürün</label>
+                    <select name="urun_id" id="urun_id" class="form-select" required onchange="urunSecildi()">
+                        <option value="">Ürün Seçiniz...</option>
+                        {% for urun in urunler %}
+                        <option value="{{ urun.id }}">{{ urun.urun_adi }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">Operatör</label>
+                    <select name="operator_id" class="form-select" required>
+                        <option value="">Operatör Seçiniz...</option>
+                        {% for op in operatorler %}
+                        <option value="{{ op.id }}">{{ op.ad_soyad or op.ad }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">Makine / Hat</label>
+                    <select name="makine" id="makine_id" class="form-select" required>
+                        <option value="">Seçiniz...</option>
+                        <option value="Makine-01">Makine-01</option>
+                        <option value="Makine-02">Makine-02</option>
+                        <option value="Makine-03">Makine-03</option>
+                        <option value="Manuel Hat">Manuel Hat</option>
+                    </select>
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label small fw-bold text-danger">Makine Devri</label>
+                    <input type="number" name="makine_devri" class="form-control border-danger" placeholder="RPM" value="0">
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label small fw-bold">Vardiya</label>
+                    <select name="vardiya" class="form-select" required>
+                        <option value="1. Vardiya">1. Vardiya</option>
+                        <option value="2. Vardiya">2. Vardiya</option>
+                        <option value="3. Vardiya">3. Vardiya</option>
+                    </select>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="row bg-light p-2 rounded border mx-0 mt-1">
+                        <div class="col-4 px-1">
+                            <label class="small fw-bold">Paket</label>
+                            <input type="number" name="paket_sayisi" id="p_count" class="form-control form-control-sm calc-u" value="0">
+                        </div>
+                        <div class="col-4 px-1">
+                            <label class="small fw-bold">P. İçi</label>
+                            <input type="number" name="paket_ici_adet" id="p_inner" class="form-control form-control-sm calc-u" value="0">
+                        </div>
+                        <div class="col-4 px-1">
+                            <label class="small fw-bold text-primary">Toplam</label>
+                            <input type="number" name="toplam_adet" id="p_total" class="form-control form-control-sm fw-bold border-primary bg-white" readonly value="0">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label small fw-bold">Notlar</label>
+                    <div class="input-group">
+                        <input type="text" name="notlar" class="form-control" placeholder="Üretim detayı...">
+                        <button type="submit" class="btn btn-success px-4 shadow-sm">
+                            <i class="fas fa-save me-2"></i>Kaydet
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="mb-4 text-end">
+        <a href="{{ url_for('haftalik_uretim_raporu') }}" class="btn btn-dark shadow-sm">
+            <i class="fas fa-file-excel me-2 text-success"></i> Haftalık Rapor İndir
+        </a>
+    </div>
+
+    <div class="card shadow-sm border-0" style="border-radius: 12px;">
+        <div class="card-header bg-white py-3">
+            <h5 class="card-title mb-0 fw-bold text-dark">
+                <i class="fas fa-history me-2 text-secondary"></i>Son Üretim Kayıtları
+            </h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light text-secondary">
+                        <tr>
+                            <th class="ps-4">Üretim No</th>
+                            <th>Tarih</th>
+                            <th>Ürün Bilgisi / Vardiya</th>
+                            <th class="text-center">Paket</th>
+                            <th class="text-center">P.İçi</th>
+                            <th class="text-center">Toplam</th>
+                            <th>Operatör</th>
+                            <th class="text-end pe-4">İşlemler</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for u in uretim_gecmisi %}
+                        <tr>
+                            <td class="ps-4">
+                                <span class="fw-bold text-primary">#{{ u.uretim_no }}</span>
+                            </td>
+                            <td class="small">{{ u.tarih }}</td>
+                            <td>
+                                <div class="fw-bold text-dark">{{ u.urun_adi }}</div>
+                                <span class="badge bg-light text-dark border small">{{ u.vardiya or 'Belirtilmedi' }}</span>
+                            </td>
+                            <td class="text-center">{{ u.paket_sayisi }}</td>
+                            <td class="text-center">{{ u.paket_ici_adet }}</td>
+                            <td class="text-center">
+                                <span class="badge bg-success shadow-sm">{{ u.toplam_adet }} Adet</span>
+                            </td>
+                            <td>
+                                <span class="small"><i class="fas fa-user-circle me-1 text-secondary"></i>{{ u.operator_adi or '-' }}</span>
+                            </td>
+                            <td class="text-end pe-4">
+                                <div class="btn-group shadow-sm">
+                                    <a href="/etiketler/{{ u.id }}" class="btn btn-sm btn-outline-secondary" title="Etiket Bas">
+                                        <i class="fas fa-tags"></i>
+                                    </a>
+                                    {% if role == 'Admin' or yetki >= 3 %}
+                                    <a href="/uretim_duzenle/{{ u.id }}" class="btn btn-sm btn-outline-warning" title="Düzenle">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    {% endif %}
+                                    {% if role == 'Admin' or yetki == 4 %}
+                                    <a href="/uretim_sil/{{ u.id }}" class="btn btn-sm btn-outline-danger" onclick="return confirm('Silmek istediğinize emin misiniz?')" title="Sil">
+                                        <i class="fas fa-trash"></i>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td colspan="8" class="text-end small text-muted border-bottom" style="font-size: 0.7rem; background-color: #fcfcfc;">
+                                <span>Ekleyen: <b>{{ u.ekleyen_kullanici or '-' }}</b></span>
+                                {% if u.guncelleyen_kullanici %} | <span>Güncelleyen: <b>{{ u.guncelleyen_kullanici }}</b></span>{% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// 1. İş Emri Seçildiğinde Formu Doldurma
+document.getElementById('is_emri_id').addEventListener('change', function() {
+    const isEmriId = this.value;
+    const urunSelect = document.getElementById('urun_id');
+    const makineSelect = document.getElementById('makine_id');
+    const bilgiText = document.getElementById('isEmriBilgi');
+
+    if (isEmriId === "") {
+        bilgiText.classList.add('d-none');
+        return;
+    }
+
+    fetch(`/get_is_emri_detay/${isEmriId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data) {
+                urunSelect.value = data.urun_id;
+                if(data.makine_no) makineSelect.value = data.makine_no;
+                if (typeof data.paket_sayisi !== 'undefined' && data.paket_sayisi !== null) {
+                    document.getElementById('p_count').value = data.paket_sayisi;
+                }
+                if (typeof data.paket_ici_adet !== 'undefined' && data.paket_ici_adet !== null) {
+                    document.getElementById('p_inner').value = data.paket_ici_adet;
+                }
+                const p = parseFloat(document.getElementById('p_count').value) || 0;
+                const pi = parseFloat(document.getElementById('p_inner').value) || 0;
+                document.getElementById('p_total').value = p * pi;
+                bilgiText.classList.remove('d-none');
+                urunSecildi(); // Ürün seçildiğinde paket içi adet'i doldur
+            }
+        });
+});
+
+// Ürün seçildiğinde paket içi adet'i doldur
+function urunSecildi() {
+    const urunId = document.getElementById('urun_id').value;
+    const paketIciInput = document.getElementById('p_inner');
+    
+    if (!urunId) return;
+    
+    fetch('/get_urun_stok/' + urunId)
+        .then(response => response.json())
+        .then(data => {
+            if (data.paket_ici_adet && (!paketIciInput.value || paketIciInput.value == '0')) {
+                paketIciInput.value = data.paket_ici_adet;
+                // Toplamı yeniden hesapla
+                const p = parseFloat(document.getElementById('p_count').value) || 0;
+                const pi = parseFloat(paketIciInput.value) || 0;
+                document.getElementById('p_total').value = p * pi;
+            }
+        });
+}
+
+// 2. Otomatik Toplam Adet Hesaplama
+document.querySelectorAll('.calc-u').forEach(input => {
+    input.addEventListener('input', () => {
+        const p = parseFloat(document.getElementById('p_count').value) || 0;
+        const pi = parseFloat(document.getElementById('p_inner').value) || 0;
+        document.getElementById('p_total').value = p * pi;
+    });
+});
+</script>
+{% endblock %}
